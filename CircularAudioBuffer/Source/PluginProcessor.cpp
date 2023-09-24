@@ -147,29 +147,43 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
-    // This is the place where you'd normally do the guts of your plugin's
-    // audio processing...
-    // Make sure to reset the state if your inner loop is processing
-    // the samples and the outer loop is handling the channels.
-    // Alternatively, you can process the samples with the channels
-    // interleaved by keeping the same state.
-    for (int channel = 0; channel < totalNumInputChannels; ++channel)
+    auto bufferSize = buffer.getNumSamples();
+    auto delayBufferSize = delayBuffer.getNumSamples();
+
+    for (int channel = 0; channel < totalNumInputChannels; ++channel) //Iterate for each channel of audio
     {
         auto* channelData = buffer.getWritePointer (channel);
-
-        // ..do something to the data...
-    }
-
-    //Check to see if main buffer copies to delay buffer without needing to wrap
+       
+        //Check to see if main buffer copies to delay buffer without needing to wrap
         //if yes
-            //copy main buffer contents to delay buffer
-        //if not
+        //copy main buffer contents to delay buffer
+        if (delayBufferSize > bufferSize + writePos) 
+        {
+        
+            delayBuffer.copyFromWithRamp(channel, writePos, channelData, bufferSize, 0.1f, 0.1f);
+        }
+        
+    //if not     
+        else 
+        {
             //Determine how much space is left at the end of the delay buffer
+            auto numSamplesToEnd = delayBufferSize - writePos;
             //Copy that amount of contents to the end...
-            //Calculate how much content is remaining to copy from the normal buffer
-            //Copy remaining amount to beginning of delay buffer
+            delayBuffer.copyFromWithRamp(channel, writePos, channelData, numSamplesToEnd, 0.1f, 0.1f);
 
-    writePos += buffer.getNumSamples();  //To itinerate one position each time that the content has been copied
+            //Calculate how much content is remaining to copy from the normal buffer
+            auto numSampleAtStart = bufferSize - numSamplesToEnd;
+            //Copy remaining amount to beginning of delay buffer
+            delayBuffer.copyFromWithRamp(channel, 0, channelData, numSampleAtStart, 0.1f, 0.1f);
+
+        }
+    }
+    DBG("bufferDelaySize: " << delayBufferSize);
+    DBG("bufferSize: " << bufferSize);
+    DBG("writePos: " << writePos);
+
+    writePos += bufferSize;  //To itinerate one position each time that the content has been copied
+    writePos %= delayBufferSize; //This ensure that writePos is going to be between 0 and bufferSize
 }
 
 //==============================================================================
