@@ -133,57 +133,20 @@ bool CircularAudioBufferAudioProcessor::isBusesLayoutSupported (const BusesLayou
 }
 #endif
 
-void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
-{
-    juce::ScopedNoDenormals noDenormals;
-    auto totalNumInputChannels  = getTotalNumInputChannels();
-    auto totalNumOutputChannels = getTotalNumOutputChannels();
-
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
-    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
-        buffer.clear (i, 0, buffer.getNumSamples());
-
-    auto bufferSize = buffer.getNumSamples();
-    auto delayBufferSize = delayBuffer.getNumSamples();
-
-
-    for (int channel = 0; channel < totalNumInputChannels; ++channel) //Iterate for each channel of audio
-    {
-        auto* channelData = buffer.getWritePointer (channel);
-       
-        const float* bufferData = buffer.getReadPointer(channel);
-        const float* delayBufferData = delayBuffer.getWritePointer(channel);
-        float* ouputDryBuffer = buffer.getWritePointer(channel);
-
-        fillDelayBuffer(channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
-        getFromDelayBuffer(buffer, channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
-        //feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer);
-    }
-
-    writePos += bufferSize;  //To itinerate one position each time that the content has been copied
-    writePos %= delayBufferSize; //This ensure that writePos is going to be between 0 and bufferSize
-
-    //DBG("bufferDelaySize: " << delayBufferSize);
-    //DBG("bufferSize: " << bufferSize);
-    //DBG("writePos: " << writePos);
-    
- 
-}
-
+//int CircularAudioBufferAudioProcessor::getDelayTime()
+//{
+//    return delayTime;
+//}
 
 void CircularAudioBufferAudioProcessor::setDelayTime(int newDelayTime)
 {
     delayTime = newDelayTime;
+    DBG("DelayTime is: " << newDelayTime);
 }
 
 void CircularAudioBufferAudioProcessor::fillDelayBuffer(int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
 {
-    const float gain = 0.3f;
+    const float gain = 0.8f;
     //Check to see if main buffer copies to delay buffer without needing to wrap
         //if yes
         //copy main buffer contents to delay buffer
@@ -211,21 +174,22 @@ void CircularAudioBufferAudioProcessor::fillDelayBuffer(int channel, const int b
 
 void CircularAudioBufferAudioProcessor::getFromDelayBuffer(AudioBuffer<float> buffer, int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
 {
+    // DBG()
     const int readPosition = static_cast<int>(delayBufferSize + writePos - (mSampleRate * delayTime / 1000)) % delayBufferSize;  //(mSampleRate * delayTime/1000) -> this is converting the seconds of delay (500ms) in samples. static_cast<int> is = than (int)(something) to be sure that everything that is there is going to be casted as an int
 
     if (delayBufferSize > bufferSize + readPosition) //To be sure that we are not coming back to much on the time that we reach the edge
     {
-        buffer.copyFrom(channel, 0, delayBufferData + readPosition, bufferSize);
+        buffer.addFrom(channel, 0, delayBufferData + readPosition, bufferSize);
     }
-    else 
+    else
     {
         const int bufferRemaining = delayBufferSize - readPosition;
-        buffer.copyFrom(channel, 0, delayBufferData + readPosition, bufferRemaining);
-        buffer.copyFrom(channel, bufferRemaining, delayBufferData, bufferSize - bufferRemaining);
+        buffer.addFrom(channel, 0, delayBufferData + readPosition, bufferRemaining);
+        buffer.addFrom(channel, bufferRemaining, delayBufferData, bufferSize - bufferRemaining);
     }
 }
 
-void CircularAudioBufferAudioProcessor::feedbackDelay (int channel, const int bufferSize, const int delayBufferSize, float* ouputDryBuffer) //We are taking the ouput of the main buffer and copy it to the delayBuffer
+void CircularAudioBufferAudioProcessor::feedbackDelay(int channel, const int bufferSize, const int delayBufferSize, float* ouputDryBuffer) //We are taking the ouput of the main buffer and copy it to the delayBuffer
 {
     if (delayBufferSize > bufferSize + writePos) //To be sure that we are not coming back to much on the time that we reach the edge
     {
@@ -240,6 +204,49 @@ void CircularAudioBufferAudioProcessor::feedbackDelay (int channel, const int bu
     }
 }
 
+void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
+{
+    juce::ScopedNoDenormals noDenormals;
+    auto totalNumInputChannels  = getTotalNumInputChannels();
+    auto totalNumOutputChannels = getTotalNumOutputChannels();
+
+    // In case we have more outputs than inputs, this code clears any output
+    // channels that didn't contain input data, (because these aren't
+    // guaranteed to be empty - they may contain garbage).
+    // This is here to avoid people getting screaming feedback
+    // when they first compile a plugin, but obviously you don't need to keep
+    // this code if your algorithm always overwrites all the output channels.
+    for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
+        buffer.clear (i, 0, buffer.getNumSamples());
+
+    auto bufferSize = buffer.getNumSamples();
+    auto delayBufferSize = delayBuffer.getNumSamples();
+
+
+    for (int channel = 0; channel < totalNumInputChannels; ++channel) //Iterate for each channel of audio
+    {
+        auto* channelData = buffer.getWritePointer (channel);
+       
+        const float* bufferData = buffer.getReadPointer(channel);
+        const float* delayBufferData = delayBuffer.getReadPointer(channel);
+        float* ouputDryBuffer = buffer.getWritePointer(channel);
+
+        //delayTime = getDelayTime();
+
+        fillDelayBuffer(channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
+        getFromDelayBuffer(buffer, channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
+        feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer);
+    }
+
+    writePos += bufferSize;  //To itinerate one position each time that the content has been copied
+    writePos %= delayBufferSize; //This ensure that writePos is going to be between 0 and bufferSize
+
+    //DBG("bufferDelaySize: " << delayBufferSize);
+    //DBG("bufferSize: " << bufferSize);
+    //DBG("writePos: " << writePos);
+    
+ 
+}
 
 
 //==============================================================================

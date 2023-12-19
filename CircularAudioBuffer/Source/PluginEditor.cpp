@@ -33,14 +33,14 @@ void CircularAudioBufferAudioProcessorEditor::paint (juce::Graphics& g)
     //g.drawFittedText ("Hello World!", getLocalBounds(), juce::Justification::centred, 1);
 
     sldrDelayTime.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
-    sldrDelayTime.setRange(500, 2000);
+    sldrDelayTime.setRange(0, 2000);
     sldrDelayTime.setTextValueSuffix("s");
-    
+    sldrDelayTime.addListener(this);
     addAndMakeVisible(sldrDelayTime);
 
     sldrDelayGain.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
     sldrDelayGain.setRange(0.0, 1.1);
-
+    sldrDelayGain.addListener(this);
     addAndMakeVisible(sldrDelayGain);
     
 }
@@ -59,7 +59,12 @@ void CircularAudioBufferAudioProcessorEditor::resized()
     sldrDelayGain.setBounds(300, 100, 200, 200);
 }
 
-void CircularAudioBufferAudioProcessorEditor::getDelayTimeValue()
+
+void CircularAudioBufferAudioProcessorEditor::sliderValueChanged(Slider* slider)
 {
-    audioProcessor.setDelayTime(sldrDelayTime.getValue());
+    if (slider == &sldrDelayTime)
+    {
+        audioProcessor.setDelayTime(sldrDelayTime.getValue());
+    }
 }
+

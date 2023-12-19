@@ -14,7 +14,8 @@
 //==============================================================================
 /**
 */
-class CircularAudioBufferAudioProcessorEditor  : public juce::AudioProcessorEditor
+class CircularAudioBufferAudioProcessorEditor  : public juce::AudioProcessorEditor,
+                                                 public Slider::Listener
 {
 public:
     CircularAudioBufferAudioProcessorEditor (CircularAudioBufferAudioProcessor&);
@@ -24,13 +25,13 @@ public:
     void paint (juce::Graphics&) override;
     void resized() override;
 
-    void getDelayTimeValue();
+    void sliderValueChanged(Slider* slider) override;
 
 private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     CircularAudioBufferAudioProcessor& audioProcessor;
     Slider sldrDelayTime, sldrDelayGain;
-
+    
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CircularAudioBufferAudioProcessorEditor)
 };
