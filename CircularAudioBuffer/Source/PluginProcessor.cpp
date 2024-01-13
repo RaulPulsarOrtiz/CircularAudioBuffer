@@ -198,14 +198,14 @@ void CircularAudioBufferAudioProcessor::feedbackDelay(int channel, const int buf
 {
     if (delayBufferSize > bufferSize + writePos) //To be sure that we are not coming back to much on the time that we reach the edge
     {
-        delayBuffer.addFromWithRamp(channel, writePos, ouputDryBuffer, bufferSize, delayGain, delayGain);
+        delayBuffer.addFrom(channel, writePos, ouputDryBuffer, bufferSize, delayGain);
     }
 
     else
     {
         const int bufferRemaining = delayBufferSize - writePos;
-        delayBuffer.addFromWithRamp(channel, bufferRemaining, ouputDryBuffer, bufferRemaining, 0.8, 0.8);
-        delayBuffer.addFromWithRamp(channel, 0, ouputDryBuffer, bufferSize - bufferRemaining, 0.8, 0.8);
+        delayBuffer.addFrom(channel, bufferRemaining, ouputDryBuffer, bufferRemaining, delayGain);
+        delayBuffer.addFrom(channel, 0, ouputDryBuffer, bufferSize - bufferRemaining, delayGain);
     }
 }
 

@@ -33,15 +33,26 @@ void CircularAudioBufferAudioProcessorEditor::paint (juce::Graphics& g)
     //g.drawFittedText ("Hello World!", getLocalBounds(), juce::Justification::centred, 1);
 
     sldrDelayTime.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
-    sldrDelayTime.setRange(0, 2000);
-    sldrDelayTime.setTextValueSuffix("s");
+    sldrDelayTime.setRange(0.0, 1000.0, 1.0);
+    sldrDelayTime.setTextValueSuffix("ms");
     sldrDelayTime.addListener(this);
     addAndMakeVisible(sldrDelayTime);
-
+    
     sldrDelayGain.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
-    sldrDelayGain.setRange(0.0, 1.1);
+    sldrDelayGain.setRange(0.0, 1.1, 0.01);
     sldrDelayGain.addListener(this);
     addAndMakeVisible(sldrDelayGain);
+
+    delayTimeLabel.setText("Delay Time", dontSendNotification);
+    delayTimeLabel.attachToComponent(&sldrDelayTime, false);
+    delayTimeLabel.setJustificationType(Justification::centredBottom);
+    addAndMakeVisible(sldrDelayTime);
+
+    delayGainLabel.setText("Feedback Gain", dontSendNotification);
+    delayGainLabel.setJustificationType(Justification::centredBottom);
+    delayGainLabel.attachToComponent(&sldrDelayGain, false);
+    
+    addAndMakeVisible(delayGainLabel);
     
 }
 
@@ -49,14 +60,10 @@ void CircularAudioBufferAudioProcessorEditor::resized()
 {
     // This is generally where you'll want to lay out the positions of any
     // subcomponents in your editor..
-    Rectangle <int> plugInArea = getBounds();
-    auto middleAreaVertical = plugInArea.getHeight();
-   // Rectangle<int> xMiddleAreaVertical = middleAreaVertical.getX();
-
-   // auto thirdOfAreaHorizontal = plugInArea.getWidth() / 3;
-    sldrDelayTime.setBounds(100, 100, 200, 200);
-   // sldrDelayTime.setBounds()
-    sldrDelayGain.setBounds(300, 100, 200, 200);
+  
+    auto area = getBounds();
+    sldrDelayTime.setBounds(100, 50, 200, 200);
+    sldrDelayGain.setBounds(600, 50, 200, 200);
 }
 
 

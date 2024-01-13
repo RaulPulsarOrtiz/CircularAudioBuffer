@@ -64,7 +64,7 @@ private:
     int mSampleRate{ 44100 };
 
     int delayTime { 0 }; // miliseconds
-    float delayGain{ 0.f };
+    float delayGain{ 1.f };
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CircularAudioBufferAudioProcessor)
 };

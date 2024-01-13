@@ -32,6 +32,7 @@ private:
     // access the processor object that created it.
     CircularAudioBufferAudioProcessor& audioProcessor;
     Slider sldrDelayTime, sldrDelayGain;
+    Label delayTimeLabel, delayGainLabel;
     
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CircularAudioBufferAudioProcessorEditor)
 };
