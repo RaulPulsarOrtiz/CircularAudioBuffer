@@ -54,17 +54,17 @@ public:
     void setStateInformation (const void* data, int sizeInBytes) override;
 
     void setDelayTime(int delayTime);
-    //int getDelayTime();
+    void setDelayGain(float delayGain);
     void fillDelayBuffer(int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData);
     void getFromDelayBuffer(AudioBuffer<float> buffer, int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData);
-    void feedbackDelay(int channel, const int bufferSize, const int delayBufferSize, float* ouputDryBuffer);
+    void feedbackDelay(int channel, const int bufferSize, const int delayBufferSize, float* ouputDryBuffer, float delayGain);
 private:
     AudioBuffer<float> delayBuffer;
     int writePos { 0 };
     int mSampleRate{ 44100 };
 
     int delayTime { 0 }; // miliseconds
-    
+    float delayGain{ 0.f };
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CircularAudioBufferAudioProcessor)
 };

@@ -66,5 +66,10 @@ void CircularAudioBufferAudioProcessorEditor::sliderValueChanged(Slider* slider)
     {
         audioProcessor.setDelayTime(sldrDelayTime.getValue());
     }
+
+    else if (slider == &sldrDelayGain)
+    {
+        audioProcessor.setDelayGain(sldrDelayGain.getValue());
+    }
 }
 

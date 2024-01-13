@@ -144,9 +144,14 @@ void CircularAudioBufferAudioProcessor::setDelayTime(int newDelayTime)
     DBG("DelayTime is: " << newDelayTime);
 }
 
+void CircularAudioBufferAudioProcessor::setDelayGain(float newdelayGain)
+{
+    delayGain = newdelayGain;
+}
+
 void CircularAudioBufferAudioProcessor::fillDelayBuffer(int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
 {
-    const float gain = 0.8f;
+    const float gain = 1.f;
     //Check to see if main buffer copies to delay buffer without needing to wrap
         //if yes
         //copy main buffer contents to delay buffer
@@ -189,11 +194,11 @@ void CircularAudioBufferAudioProcessor::getFromDelayBuffer(AudioBuffer<float> bu
     }
 }
 
-void CircularAudioBufferAudioProcessor::feedbackDelay(int channel, const int bufferSize, const int delayBufferSize, float* ouputDryBuffer) //We are taking the ouput of the main buffer and copy it to the delayBuffer
+void CircularAudioBufferAudioProcessor::feedbackDelay(int channel, const int bufferSize, const int delayBufferSize, float* ouputDryBuffer, float delayGain) //We are taking the ouput of the main buffer and copy it to the delayBuffer
 {
     if (delayBufferSize > bufferSize + writePos) //To be sure that we are not coming back to much on the time that we reach the edge
     {
-        delayBuffer.addFromWithRamp(channel, writePos, ouputDryBuffer, bufferSize, 0.8, 0.8);
+        delayBuffer.addFromWithRamp(channel, writePos, ouputDryBuffer, bufferSize, delayGain, delayGain);
     }
 
     else
@@ -231,11 +236,9 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
         const float* delayBufferData = delayBuffer.getReadPointer(channel);
         float* ouputDryBuffer = buffer.getWritePointer(channel);
 
-        //delayTime = getDelayTime();
-
         fillDelayBuffer(channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
         getFromDelayBuffer(buffer, channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
-        feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer);
+        feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer, delayGain);
     }
 
     writePos += bufferSize;  //To itinerate one position each time that the content has been copied
