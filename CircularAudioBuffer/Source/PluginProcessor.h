@@ -58,13 +58,31 @@ public:
     void fillDelayBuffer(int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData);
     void getFromDelayBuffer(AudioBuffer<float> buffer, int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData);
     void feedbackDelay(int channel, const int bufferSize, const int delayBufferSize, float* ouputDryBuffer, float delayGain);
+
+    enum FilterType
+    {
+        LowPass,
+        HighPass
+    };
+   
+    FilterType filterType;
+   
+    void setFilterType(FilterType filterType);
+
 private:
     AudioBuffer<float> delayBuffer;
+
     int writePos { 0 };
     int mSampleRate{ 44100 };
 
     int delayTime { 0 }; // miliseconds
     float delayGain{ 1.f };
+
+    float fDelayBufferFiltered{ 0 };
+
+    std::atomic<int> freqCutoff = 20000;
+    void reset() override;
+    dsp::StateVariableTPTFilter<float> filter;
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CircularAudioBufferAudioProcessor)
 };

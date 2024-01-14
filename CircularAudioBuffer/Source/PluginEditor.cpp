@@ -16,6 +16,33 @@ CircularAudioBufferAudioProcessorEditor::CircularAudioBufferAudioProcessorEditor
     // Make sure that before the constructor has finished, you've set the
     // editor's size to whatever you need it to be.
     setSize (1000, 300);
+
+    sldrDelayTime.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
+    sldrDelayTime.setRange(0.0, 1000.0, 1.0);
+    sldrDelayTime.setTextValueSuffix("ms");
+    sldrDelayTime.addListener(this);
+    addAndMakeVisible(sldrDelayTime);
+
+    sldrDelayGain.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
+    sldrDelayGain.setRange(0.0, 1.1, 0.01);
+    sldrDelayGain.addListener(this);
+    addAndMakeVisible(sldrDelayGain);
+
+    delayTimeLabel.setText("Delay Time", dontSendNotification);
+    delayTimeLabel.attachToComponent(&sldrDelayTime, false);
+    delayTimeLabel.setJustificationType(Justification::centredBottom);
+    addAndMakeVisible(sldrDelayTime);
+
+    delayGainLabel.setText("Feedback Gain", dontSendNotification);
+    delayGainLabel.setJustificationType(Justification::centredBottom);
+    delayGainLabel.attachToComponent(&sldrDelayGain, false);
+    addAndMakeVisible(delayGainLabel);
+
+    filterTypeMenu.addItem("Lowpass", 1);
+    filterTypeMenu.addItem("HighPass", 2);
+    filterTypeMenu.setText("Filter Type:", dontSendNotification);
+    // filterTypeMenu.addListener(this);
+    addAndMakeVisible(filterTypeMenu);
 }
 
 CircularAudioBufferAudioProcessorEditor::~CircularAudioBufferAudioProcessorEditor()
@@ -32,28 +59,7 @@ void CircularAudioBufferAudioProcessorEditor::paint (juce::Graphics& g)
     //g.setFont (15.0f);
     //g.drawFittedText ("Hello World!", getLocalBounds(), juce::Justification::centred, 1);
 
-    sldrDelayTime.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
-    sldrDelayTime.setRange(0.0, 1000.0, 1.0);
-    sldrDelayTime.setTextValueSuffix("ms");
-    sldrDelayTime.addListener(this);
-    addAndMakeVisible(sldrDelayTime);
-    
-    sldrDelayGain.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
-    sldrDelayGain.setRange(0.0, 1.1, 0.01);
-    sldrDelayGain.addListener(this);
-    addAndMakeVisible(sldrDelayGain);
-
-    delayTimeLabel.setText("Delay Time", dontSendNotification);
-    delayTimeLabel.attachToComponent(&sldrDelayTime, false);
-    delayTimeLabel.setJustificationType(Justification::centredBottom);
-    addAndMakeVisible(sldrDelayTime);
-
-    delayGainLabel.setText("Feedback Gain", dontSendNotification);
-    delayGainLabel.setJustificationType(Justification::centredBottom);
-    delayGainLabel.attachToComponent(&sldrDelayGain, false);
-    
-    addAndMakeVisible(delayGainLabel);
-    
+ 
 }
 
 void CircularAudioBufferAudioProcessorEditor::resized()
@@ -63,7 +69,8 @@ void CircularAudioBufferAudioProcessorEditor::resized()
   
     auto area = getBounds();
     sldrDelayTime.setBounds(100, 50, 200, 200);
-    sldrDelayGain.setBounds(600, 50, 200, 200);
+    sldrDelayGain.setBounds(300, 50, 200, 200);
+    filterTypeMenu.setBounds(700, 50, 100, 30);
 }
 
 
@@ -77,6 +84,24 @@ void CircularAudioBufferAudioProcessorEditor::sliderValueChanged(Slider* slider)
     else if (slider == &sldrDelayGain)
     {
         audioProcessor.setDelayGain(sldrDelayGain.getValue());
+    }
+}
+
+void CircularAudioBufferAudioProcessorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
+{
+    if (comboBoxThatHasChanged == &filterTypeMenu)
+    {
+        if (filterTypeMenu.getSelectedId() == 1) //LPF
+        {
+            audioProcessor.setFilterType(audioProcessor.LowPass);
+            //cutoffSldr.setValue(20000);
+        }
+
+        else if (filterTypeMenu.getSelectedId() == 2) //HPF
+        {
+            audioProcessor.setFilterType(audioProcessor.HighPass);
+           // cutoffSldr.setValue(20);
+        }
     }
 }
 

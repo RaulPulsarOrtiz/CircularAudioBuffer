@@ -99,6 +99,15 @@ void CircularAudioBufferAudioProcessor::prepareToPlay (double sampleRate, int sa
     auto delayBufferSize = 2.0 * (sampleRate + samplesPerBlock); // To give a bit of extra room. That's how Audio Programmer does it.
     mSampleRate = sampleRate;
     delayBuffer.setSize(getTotalNumInputChannels(), (int)delayBufferSize); //To cast buffer size that are double with the type of argument in the definition of the function
+
+
+    dsp::ProcessSpec spec;
+    spec.sampleRate = sampleRate;
+    spec.maximumBlockSize = samplesPerBlock;
+    spec.numChannels = getTotalNumInputChannels();
+
+    filter.prepare(spec);
+    reset();
 }
 
 void CircularAudioBufferAudioProcessor::releaseResources()
@@ -151,7 +160,7 @@ void CircularAudioBufferAudioProcessor::setDelayGain(float newdelayGain)
 
 void CircularAudioBufferAudioProcessor::fillDelayBuffer(int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
 {
-    const float gain = 1.f;
+    const float gain = 0.7f;
     //Check to see if main buffer copies to delay buffer without needing to wrap
         //if yes
         //copy main buffer contents to delay buffer
@@ -214,6 +223,8 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     juce::ScopedNoDenormals noDenormals;
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
+ 
+    filter.setCutoffFrequency(100);
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -227,15 +238,28 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     auto bufferSize = buffer.getNumSamples();
     auto delayBufferSize = delayBuffer.getNumSamples();
 
-
     for (int channel = 0; channel < totalNumInputChannels; ++channel) //Iterate for each channel of audio
     {
         auto* channelData = buffer.getWritePointer (channel);
-       
+        auto* delayChannelData = delayBuffer.getWritePointer(channel);
+
+    //    //      /** Filter applied to delayBufferData before getFromDelayBuffer function, filtering sample per sample: */
+    //    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
+    //    {
+    //        delayChannelData[sample] = delayBuffer.getSample(channel, sample);
+    //        fDelayBufferFiltered = filter.processSample(channel, delayChannelData[sample]);
+    //        delayBuffer.setSample(channel, sample, fDelayBufferFiltered); // If this doesn't work. Try to work just with the data 
+    //    }
+
+        /** Filter applied to delayBuffer before getFromDelayBuffer function, filtering per Block: */
+        juce::dsp::AudioBlock<float> block(delayBuffer);
+        juce::dsp::ProcessContextReplacing<float> context(block);
+        filter.process(context);
+
         const float* bufferData = buffer.getReadPointer(channel);
         const float* delayBufferData = delayBuffer.getReadPointer(channel);
-        float* ouputDryBuffer = buffer.getWritePointer(channel);
-
+        float* ouputDryBuffer = buffer.getWritePointer(channel);    
+            
         fillDelayBuffer(channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
         getFromDelayBuffer(buffer, channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
         feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer, delayGain);
@@ -251,6 +275,25 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
  
 }
 
+
+void CircularAudioBufferAudioProcessor::setFilterType(FilterType newFiltertype)
+{
+    filterType = newFiltertype;
+
+    if (filterType == LowPass)
+    {
+        filter.setType(dsp::StateVariableTPTFilterType::lowpass);
+    }
+    else if (filterType == HighPass)
+    {
+        filter.setType(dsp::StateVariableTPTFilterType::highpass);
+    }
+}
+
+void CircularAudioBufferAudioProcessor::reset()
+{
+    filter.reset();
+}
 
 //==============================================================================
 bool CircularAudioBufferAudioProcessor::hasEditor() const
