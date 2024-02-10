@@ -93,13 +93,13 @@ void CircularAudioBufferAudioProcessorEditor::comboBoxChanged(ComboBox* comboBox
     {
         if (filterTypeMenu.getSelectedId() == 1) //LPF
         {
-            audioProcessor.setFilterType(audioProcessor.LowPass);
+            //audioProcessor.setFilterType(audioProcessor.LowPass);
             //cutoffSldr.setValue(20000);
         }
 
         else if (filterTypeMenu.getSelectedId() == 2) //HPF
         {
-            audioProcessor.setFilterType(audioProcessor.HighPass);
+           // audioProcessor.setFilterType(audioProcessor.HighPass);
            // cutoffSldr.setValue(20);
         }
     }

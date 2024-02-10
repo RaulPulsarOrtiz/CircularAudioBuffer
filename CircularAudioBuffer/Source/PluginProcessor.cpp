@@ -96,18 +96,20 @@ void CircularAudioBufferAudioProcessor::prepareToPlay (double sampleRate, int sa
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
 
-    auto delayBufferSize = 2.0 * (sampleRate + samplesPerBlock); // To give a bit of extra room. That's how Audio Programmer does it.
+    auto delayBufferSize = 0.5 * sampleRate; // To give a bit of extra room. That's how Audio Programmer does it.
     mSampleRate = sampleRate;
     delayBuffer.setSize(getTotalNumInputChannels(), (int)delayBufferSize); //To cast buffer size that are double with the type of argument in the definition of the function
 
 
-    dsp::ProcessSpec spec;
+    dsp::ProcessSpec spec; //DSP algorithm needs this info to work
     spec.sampleRate = sampleRate;
     spec.maximumBlockSize = samplesPerBlock;
     spec.numChannels = getTotalNumInputChannels();
 
     filter.prepare(spec);
-    reset();
+    reset(); //To avoid junk value from the previous time it was used
+  //  filter.setType(dsp::StateVariableTPTFilterType::lowpass);
+    filter.setCutoffFrequency(500.f);
 }
 
 void CircularAudioBufferAudioProcessor::releaseResources()
@@ -141,11 +143,6 @@ bool CircularAudioBufferAudioProcessor::isBusesLayoutSupported (const BusesLayou
   #endif
 }
 #endif
-
-//int CircularAudioBufferAudioProcessor::getDelayTime()
-//{
-//    return delayTime;
-//}
 
 void CircularAudioBufferAudioProcessor::setDelayTime(int newDelayTime)
 {
@@ -224,7 +221,6 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
  
-    filter.setCutoffFrequency(100);
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -240,30 +236,22 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
 
     for (int channel = 0; channel < totalNumInputChannels; ++channel) //Iterate for each channel of audio
     {
-        auto* channelData = buffer.getWritePointer (channel);
+        auto* channelData = buffer.getWritePointer(channel);                   //	Returns a writeable pointer to one of the buffer's channels.
         auto* delayChannelData = delayBuffer.getWritePointer(channel);
-
-    //    //      /** Filter applied to delayBufferData before getFromDelayBuffer function, filtering sample per sample: */
-    //    for (int sample = 0; sample < buffer.getNumSamples(); ++sample)
-    //    {
-    //        delayChannelData[sample] = delayBuffer.getSample(channel, sample);
-    //        fDelayBufferFiltered = filter.processSample(channel, delayChannelData[sample]);
-    //        delayBuffer.setSample(channel, sample, fDelayBufferFiltered); // If this doesn't work. Try to work just with the data 
-    //    }
-
-        /** Filter applied to delayBuffer before getFromDelayBuffer function, filtering per Block: */
-        juce::dsp::AudioBlock<float> block(delayBuffer);
-        juce::dsp::ProcessContextReplacing<float> context(block);
-        filter.process(context);
 
         const float* bufferData = buffer.getReadPointer(channel);
         const float* delayBufferData = delayBuffer.getReadPointer(channel);
-        float* ouputDryBuffer = buffer.getWritePointer(channel);    
-            
+        float* ouputDryBuffer = buffer.getWritePointer(channel);
+
         fillDelayBuffer(channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
         getFromDelayBuffer(buffer, channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
         feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer, delayGain);
     }
+    /** Filter applied to delayBuffer before getFromDelayBuffer function, filtering per Block: */
+    auto audioBlock = juce::dsp::AudioBlock<float>(buffer); //already do both channels for the dsp process
+    auto context = juce::dsp::ProcessContextReplacing<float>(audioBlock);
+    filter.process(context);
+
 
     writePos += bufferSize;  //To itinerate one position each time that the content has been copied
     writePos %= delayBufferSize; //This ensure that writePos is going to be between 0 and bufferSize
@@ -274,7 +262,6 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     
  
 }
-
 
 void CircularAudioBufferAudioProcessor::setFilterType(FilterType newFiltertype)
 {
