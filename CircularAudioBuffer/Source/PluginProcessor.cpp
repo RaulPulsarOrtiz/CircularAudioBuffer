@@ -19,7 +19,7 @@ CircularAudioBufferAudioProcessor::CircularAudioBufferAudioProcessor()
                       #endif
                        .withOutput ("Output", juce::AudioChannelSet::stereo(), true)
                      #endif
-                       )
+                       ), apvts(*this, nullptr, "Parameters", createParameters())
 #endif
 {
 }
@@ -96,7 +96,7 @@ void CircularAudioBufferAudioProcessor::prepareToPlay (double sampleRate, int sa
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
 
-    auto delayBufferSize = 0.5 * sampleRate; // To give a bit of extra room. That's how Audio Programmer does it.
+    auto delayBufferSize = 1.1 * sampleRate; // To give a bit of extra room. That's how Audio Programmer does it.
     mSampleRate = sampleRate;
     delayBuffer.setSize(getTotalNumInputChannels(), (int)delayBufferSize); //To cast buffer size that are double with the type of argument in the definition of the function
 
@@ -109,7 +109,7 @@ void CircularAudioBufferAudioProcessor::prepareToPlay (double sampleRate, int sa
     filter.prepare(spec);
     reset(); //To avoid junk value from the previous time it was used
   //  filter.setType(dsp::StateVariableTPTFilterType::lowpass);
-    filter.setCutoffFrequency(500.f);
+   // filter.setCutoffFrequency(500.f);
 }
 
 void CircularAudioBufferAudioProcessor::releaseResources()
@@ -155,6 +155,30 @@ void CircularAudioBufferAudioProcessor::setDelayGain(float newdelayGain)
     delayGain = newdelayGain;
 }
 
+void CircularAudioBufferAudioProcessor::setFilterType(FilterType newFiltertype)
+{
+    filterType = newFiltertype;
+
+    if (filterType == FilterType::LowPass)
+    {
+        filter.setType(dsp::StateVariableTPTFilterType::lowpass);
+    }
+    else if (filterType == FilterType::HighPass)
+    {
+         filter.setType(dsp::StateVariableTPTFilterType::highpass);
+    }
+}
+
+void CircularAudioBufferAudioProcessor::setFreqCutoff(float newFreqCutoff)
+{
+    filterFreqCutOff = newFreqCutoff;
+}
+
+void CircularAudioBufferAudioProcessor::reset()
+{
+    filter.reset();
+}
+
 void CircularAudioBufferAudioProcessor::fillDelayBuffer(int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
 {
     const float gain = 0.7f;
@@ -185,7 +209,6 @@ void CircularAudioBufferAudioProcessor::fillDelayBuffer(int channel, const int b
 
 void CircularAudioBufferAudioProcessor::getFromDelayBuffer(AudioBuffer<float> buffer, int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
 {
-    // DBG()
     const int readPosition = static_cast<int>(delayBufferSize + writePos - (mSampleRate * delayTime / 1000)) % delayBufferSize;  //(mSampleRate * delayTime/1000) -> this is converting the seconds of delay (500ms) in samples. static_cast<int> is = than (int)(something) to be sure that everything that is there is going to be casted as an int
 
     if (delayBufferSize > bufferSize + readPosition) //To be sure that we are not coming back to much on the time that we reach the edge
@@ -247,10 +270,23 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
         getFromDelayBuffer(buffer, channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
         feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer, delayGain);
     }
-    /** Filter applied to delayBuffer before getFromDelayBuffer function, filtering per Block: */
-    auto audioBlock = juce::dsp::AudioBlock<float>(buffer); //already do both channels for the dsp process
-    auto context = juce::dsp::ProcessContextReplacing<float>(audioBlock);
-    filter.process(context);
+
+   // filter.setCutoffFrequency(filterFreqCutOff);
+
+    if (filterState == true)
+    {
+        /** Filter applied to delayBuffer before getFromDelayBuffer function, filtering per Block: */
+        auto audioBlock = juce::dsp::AudioBlock<float>(buffer); //already do both channels for the dsp process
+        auto context = juce::dsp::ProcessContextReplacing<float>(audioBlock);
+        filter.process(context);
+    }
+
+    else if (filterState == false)
+    {
+        buffer = buffer; //??? what can I write here?
+    }
+    //Get channelData again or buffer and multiply for something less than 1 to avoid that rise and colapse of the L & R channels?
+
 
 
     writePos += bufferSize;  //To itinerate one position each time that the content has been copied
@@ -263,23 +299,23 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
  
 }
 
-void CircularAudioBufferAudioProcessor::setFilterType(FilterType newFiltertype)
-{
-    filterType = newFiltertype;
 
-    if (filterType == LowPass)
-    {
-        filter.setType(dsp::StateVariableTPTFilterType::lowpass);
-    }
-    else if (filterType == HighPass)
-    {
-        filter.setType(dsp::StateVariableTPTFilterType::highpass);
-    }
+void CircularAudioBufferAudioProcessor::filterIsOn(bool newFilterState)
+{
+    filterState = newFilterState;
 }
 
-void CircularAudioBufferAudioProcessor::reset()
+AudioProcessorValueTreeState::ParameterLayout CircularAudioBufferAudioProcessor::createParameters()
 {
-    filter.reset();
+    std::vector<std::unique_ptr<RangedAudioParameter>> params;
+
+    params.push_back(std::make_unique<AudioParameterFloat>("DELAYTIME", "DelayTime", 0.f, 1000.f, 0.f));
+    params.push_back(std::make_unique<AudioParameterFloat>("DELAYFEEDBACK", "DelayFeedback", 0.f, 1.1f, 0.5f));
+    //params.push_back(std::make_unique<AudioParameterChoice>("FILTERTYPEMENU", "FilterTypeMenu", { "Lowpass", "HighPass" }, 0));
+   // params.push_back(std::make_unique<AudioParameterBool>("FILTERONOFF", "filterOnOff", false)); 
+    params.push_back(std::make_unique<AudioParameterFloat>("FILTERCUTOFF", "FilterCutoff", 500.f, 20000.f, 20000.f));
+
+    return { params.begin(), params.end() };
 }
 
 //==============================================================================

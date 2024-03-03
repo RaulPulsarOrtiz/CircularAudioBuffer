@@ -66,8 +66,15 @@ public:
     };
    
     FilterType filterType;
-   
+
     void setFilterType(FilterType filterType);
+
+    void filterIsOn(bool newFilterState);
+ 
+    void setFreqCutoff(float newFreqCutoff);
+
+    AudioProcessorValueTreeState apvts;
+    AudioProcessorValueTreeState::ParameterLayout createParameters();
 
 private:
     AudioBuffer<float> delayBuffer;
@@ -83,6 +90,10 @@ private:
     std::atomic<int> freqCutoff = 20000;
     void reset() override;
     dsp::StateVariableTPTFilter<float> filter;
+    
+    float filterFreqCutOff;
+    bool filterState = false;
+        
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CircularAudioBufferAudioProcessor)
 };
