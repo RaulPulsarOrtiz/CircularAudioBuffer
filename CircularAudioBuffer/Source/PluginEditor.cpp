@@ -48,7 +48,7 @@ CircularAudioBufferAudioProcessorEditor::CircularAudioBufferAudioProcessorEditor
     filterTypeMenu.addListener(this);
     addAndMakeVisible(filterTypeMenu);
 
-   // filterTypeMenuAttachment = std::make_unique<AudioProcessorValueTreeState::SliderAttachment>(audioProcessor.apvts, "FILTERTYPEMENU", filterTypeMenu);
+    filterTypeMenuAttachment = std::make_unique<AudioProcessorValueTreeState::ComboBoxAttachment>(audioProcessor.apvts, "FILTERTYPEMENU", filterTypeMenu);
     // filterOnOffButton.onClick() = [this] { audioProcessor.filterIsOn(); }; //Instead to add a Button::Listener and use the pure virtual buttonClicked() I use this labda function which return a function just when the button is clicked
 
     filterOnOffButton.setToggleState(false, NotificationType::dontSendNotification);
@@ -57,7 +57,7 @@ CircularAudioBufferAudioProcessorEditor::CircularAudioBufferAudioProcessorEditor
     filterOnOffButton.addListener(this);
     addAndMakeVisible(filterOnOffButton);
 
-    //filterOnOffAttachment = std::make_unique<AudioProcessorValueTreeState::SliderAttachment>(audioProcessor.apvts, "FILTERONOFF", filterOnOffButton);
+    filterOnOffAttachment = std::make_unique<AudioProcessorValueTreeState::ButtonAttachment>(audioProcessor.apvts, "FILTERONOFF", filterOnOffButton);
 
     sldrFreqCutoff.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
    // sldrFreqCutoff.setRange(500.0, 20000.0, 1.0);
@@ -107,20 +107,20 @@ void CircularAudioBufferAudioProcessorEditor::resized()
 
 void CircularAudioBufferAudioProcessorEditor::sliderValueChanged(Slider* slider)
 {
-    if (slider == &sldrDelayTime)
-    {
-        audioProcessor.setDelayTime(sldrDelayTime.getValue());
-    }
-
-    else if (slider == &sldrDelayGain)
-    {
-        audioProcessor.setDelayGain(sldrDelayGain.getValue());
-    }
-
-    else if (slider == &sldrFreqCutoff)
-    {
-        audioProcessor.setFreqCutoff(sldrFreqCutoff.getValue());
-    }
+//    if (slider == &sldrDelayTime)
+//    {
+//  //      audioProcessor.setDelayTime(sldrDelayTime.getValue());
+//    }
+//
+//    else if (slider == &sldrDelayGain)
+//    {
+//   //     audioProcessor.setDelayGain(sldrDelayGain.getValue());
+//    }
+//
+//    else if (slider == &sldrFreqCutoff)
+//    {
+//    //    audioProcessor.setFreqCutoff(sldrFreqCutoff.getValue());
+//    }
 }
 
 void CircularAudioBufferAudioProcessorEditor::comboBoxChanged(ComboBox* comboBoxThatHasChanged)
@@ -150,13 +150,13 @@ void CircularAudioBufferAudioProcessorEditor::buttonClicked(Button* button)
 
         if (filterOnOffButton.getToggleState() == true)
         {
-            audioProcessor.filterIsOn(filterOnOffButton.getToggleState());
+     //       audioProcessor.filterIsOn(filterOnOffButton.getToggleState());
             filterOnOffButton.setButtonText("On");
             filterOnOffButton.setColour(TextButton::buttonColourId, Colours::green);
         }
         else if (filterOnOffButton.getToggleState() == false)
         {
-            audioProcessor.filterIsOn(filterOnOffButton.getToggleState());
+         //   audioProcessor.filterIsOn(filterOnOffButton.getToggleState());
             filterOnOffButton.setButtonText("Off");
             filterOnOffButton.setColour(TextButton::buttonColourId, Colours::red);
         }

@@ -144,16 +144,16 @@ bool CircularAudioBufferAudioProcessor::isBusesLayoutSupported (const BusesLayou
 }
 #endif
 
-void CircularAudioBufferAudioProcessor::setDelayTime(int newDelayTime)
-{
-    delayTime = newDelayTime;
-    DBG("DelayTime is: " << newDelayTime);
-}
+//void CircularAudioBufferAudioProcessor::setDelayTime(int newDelayTime)
+//{
+//    delayTime = newDelayTime;
+//    DBG("DelayTime is: " << newDelayTime);
+//}
 
-void CircularAudioBufferAudioProcessor::setDelayGain(float newdelayGain)
-{
-    delayGain = newdelayGain;
-}
+//void CircularAudioBufferAudioProcessor::setDelayGain(float newdelayGain)
+//{
+//    delayGain = newdelayGain;
+//}
 
 void CircularAudioBufferAudioProcessor::setFilterType(FilterType newFiltertype)
 {
@@ -169,10 +169,10 @@ void CircularAudioBufferAudioProcessor::setFilterType(FilterType newFiltertype)
     }
 }
 
-void CircularAudioBufferAudioProcessor::setFreqCutoff(float newFreqCutoff)
-{
-    filterFreqCutOff = newFreqCutoff;
-}
+//void CircularAudioBufferAudioProcessor::setFreqCutoff(float newFreqCutoff)
+//{
+//    filterFreqCutOff = newFreqCutoff;
+//}
 
 void CircularAudioBufferAudioProcessor::reset()
 {
@@ -209,6 +209,7 @@ void CircularAudioBufferAudioProcessor::fillDelayBuffer(int channel, const int b
 
 void CircularAudioBufferAudioProcessor::getFromDelayBuffer(AudioBuffer<float> buffer, int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
 {
+    delayTime = *apvts.getRawParameterValue("DELAYTIME");
     const int readPosition = static_cast<int>(delayBufferSize + writePos - (mSampleRate * delayTime / 1000)) % delayBufferSize;  //(mSampleRate * delayTime/1000) -> this is converting the seconds of delay (500ms) in samples. static_cast<int> is = than (int)(something) to be sure that everything that is there is going to be casted as an int
 
     if (delayBufferSize > bufferSize + readPosition) //To be sure that we are not coming back to much on the time that we reach the edge
@@ -225,6 +226,8 @@ void CircularAudioBufferAudioProcessor::getFromDelayBuffer(AudioBuffer<float> bu
 
 void CircularAudioBufferAudioProcessor::feedbackDelay(int channel, const int bufferSize, const int delayBufferSize, float* ouputDryBuffer, float delayGain) //We are taking the ouput of the main buffer and copy it to the delayBuffer
 {
+    delayGain = *apvts.getRawParameterValue("DELAYFEEDBACK");
+
     if (delayBufferSize > bufferSize + writePos) //To be sure that we are not coming back to much on the time that we reach the edge
     {
         delayBuffer.addFrom(channel, writePos, ouputDryBuffer, bufferSize, delayGain);
@@ -244,6 +247,7 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     auto totalNumInputChannels  = getTotalNumInputChannels();
     auto totalNumOutputChannels = getTotalNumOutputChannels();
  
+    filterFreqCutOff = *apvts.getRawParameterValue("FILTERCUTOFF");
 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -271,7 +275,8 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
         feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer, delayGain);
     }
 
-   // filter.setCutoffFrequency(filterFreqCutOff);
+    filter.setCutoffFrequency(filterFreqCutOff);
+    filterState = *apvts.getRawParameterValue("FILTERONOFF");
 
     if (filterState == true)
     {
@@ -302,7 +307,7 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
 
 void CircularAudioBufferAudioProcessor::filterIsOn(bool newFilterState)
 {
-    filterState = newFilterState;
+//    filterState = newFilterState;
 }
 
 AudioProcessorValueTreeState::ParameterLayout CircularAudioBufferAudioProcessor::createParameters()
@@ -311,8 +316,8 @@ AudioProcessorValueTreeState::ParameterLayout CircularAudioBufferAudioProcessor:
 
     params.push_back(std::make_unique<AudioParameterFloat>("DELAYTIME", "DelayTime", 0.f, 1000.f, 0.f));
     params.push_back(std::make_unique<AudioParameterFloat>("DELAYFEEDBACK", "DelayFeedback", 0.f, 1.1f, 0.5f));
-    //params.push_back(std::make_unique<AudioParameterChoice>("FILTERTYPEMENU", "FilterTypeMenu", { "Lowpass", "HighPass" }, 0));
-   // params.push_back(std::make_unique<AudioParameterBool>("FILTERONOFF", "filterOnOff", false)); 
+    params.push_back(std::make_unique<AudioParameterChoice>("FILTERTYPEMENU", "FilterTypeMenu", juce::StringArray{ "Lowpass", "HighPass" }, 0));
+    params.push_back(std::make_unique<AudioParameterBool>("FILTERONOFF", "filterOnOff", false)); 
     params.push_back(std::make_unique<AudioParameterFloat>("FILTERCUTOFF", "FilterCutoff", 500.f, 20000.f, 20000.f));
 
     return { params.begin(), params.end() };

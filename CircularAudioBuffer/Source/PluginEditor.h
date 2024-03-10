@@ -42,8 +42,9 @@ private:
     TextButton filterOnOffButton{ "Off" };
     bool filterActive = false;
 
-    std::unique_ptr<AudioProcessorValueTreeState::SliderAttachment> delayTimeAttachment, delayFeedbackAttachment, filterTypeMenuAttachment, filterOnOffAttachment, filterCutoffAttachment;
-
+    std::unique_ptr<AudioProcessorValueTreeState::SliderAttachment> delayTimeAttachment, delayFeedbackAttachment, filterCutoffAttachment; //These attachment alwats below the declaration of the Sldr
+    std::unique_ptr<AudioProcessorValueTreeState::ComboBoxAttachment> filterTypeMenuAttachment;
+    std::unique_ptr<AudioProcessorValueTreeState::ButtonAttachment> filterOnOffAttachment;
    // enum class FilterButtonState
    // {
    //     Off,

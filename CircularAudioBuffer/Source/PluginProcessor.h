@@ -53,8 +53,8 @@ public:
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    void setDelayTime(int delayTime);
-    void setDelayGain(float delayGain);
+   // void setDelayTime(int delayTime);
+  //  void setDelayGain(float delayGain);
     void fillDelayBuffer(int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData);
     void getFromDelayBuffer(AudioBuffer<float> buffer, int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData);
     void feedbackDelay(int channel, const int bufferSize, const int delayBufferSize, float* ouputDryBuffer, float delayGain);
@@ -71,7 +71,7 @@ public:
 
     void filterIsOn(bool newFilterState);
  
-    void setFreqCutoff(float newFreqCutoff);
+ //   void setFreqCutoff(float newFreqCutoff);
 
     AudioProcessorValueTreeState apvts;
     AudioProcessorValueTreeState::ParameterLayout createParameters();
