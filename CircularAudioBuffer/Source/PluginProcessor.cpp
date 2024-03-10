@@ -107,6 +107,7 @@ void CircularAudioBufferAudioProcessor::prepareToPlay (double sampleRate, int sa
     spec.numChannels = getTotalNumInputChannels();
 
     filter.prepare(spec);
+    filter.setResonance(1 / sqrt(2)); //????
     reset(); //To avoid junk value from the previous time it was used
   //  filter.setType(dsp::StateVariableTPTFilterType::lowpass);
    // filter.setCutoffFrequency(500.f);
@@ -162,6 +163,10 @@ void CircularAudioBufferAudioProcessor::setFilterType(FilterType newFiltertype)
     if (filterType == FilterType::LowPass)
     {
         filter.setType(dsp::StateVariableTPTFilterType::lowpass);
+    }
+    else if (filterType == FilterType::BandPass)
+    {
+        filter.setType(dsp::StateVariableTPTFilterType::bandpass);
     }
     else if (filterType == FilterType::HighPass)
     {
@@ -305,10 +310,10 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
 }
 
 
-void CircularAudioBufferAudioProcessor::filterIsOn(bool newFilterState)
-{
-//    filterState = newFilterState;
-}
+//void CircularAudioBufferAudioProcessor::filterIsOn(bool newFilterState)
+//{
+////    filterState = newFilterState;
+//}
 
 AudioProcessorValueTreeState::ParameterLayout CircularAudioBufferAudioProcessor::createParameters()
 {

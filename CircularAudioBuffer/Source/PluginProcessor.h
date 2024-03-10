@@ -62,6 +62,7 @@ public:
     enum FilterType
     {
         LowPass,
+        BandPass,
         HighPass
     };
    
@@ -69,7 +70,7 @@ public:
 
     void setFilterType(FilterType filterType);
 
-    void filterIsOn(bool newFilterState);
+   // void filterIsOn(bool newFilterState);
  
  //   void setFreqCutoff(float newFreqCutoff);
 
