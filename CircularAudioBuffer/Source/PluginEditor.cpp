@@ -43,7 +43,8 @@ CircularAudioBufferAudioProcessorEditor::CircularAudioBufferAudioProcessorEditor
     addAndMakeVisible(delayGainLabel);
 
     filterTypeMenu.addItem("Lowpass", 1);
-    filterTypeMenu.addItem("HighPass", 2);
+    filterTypeMenu.addItem("Bandpass", 2);
+    filterTypeMenu.addItem("HighPass", 3);
     filterTypeMenu.setText("Filter Type:", dontSendNotification);
     filterTypeMenu.addListener(this);
     addAndMakeVisible(filterTypeMenu);
@@ -133,7 +134,13 @@ void CircularAudioBufferAudioProcessorEditor::comboBoxChanged(ComboBox* comboBox
             
         }
 
-        else if (filterTypeMenu.getSelectedId() == 2) //HPF
+        else if (filterTypeMenu.getSelectedId() == 2) //BPF
+        {
+            audioProcessor.setFilterType(audioProcessor.BandPass);
+            // sldrFreqCutoff.setRange(20.0, 10000.0, 1.0);  
+        }
+
+        else if (filterTypeMenu.getSelectedId() == 3) //HPF
         {
            audioProcessor.setFilterType(audioProcessor.HighPass);
           // sldrFreqCutoff.setRange(20.0, 10000.0, 1.0);  
