@@ -19,12 +19,16 @@ class OtherLookAndFeel : public juce::LookAndFeel_V4
 public:
     OtherLookAndFeel()
     {
-        setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colours::azure);
-        setColour(juce::Slider::rotarySliderFillColourId, juce::Colours::goldenrod);
-        setColour(juce::Slider::thumbColourId, juce::Colours::transparentBlack); //Paint all the sliders globally
+        setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colours::azure); //Line of the Slider
+        setColour(juce::Slider::rotarySliderFillColourId, juce::Colours::goldenrod); //Line of the slider from 0 to the current value
+        setColour(juce::Slider::thumbColourId, juce::Colours::transparentBlack); //Dot of the current value
        // setColour(juce::Slider::trackColourId, juce::Colours::cornflowerblue);
     }
- //  void drawRotarySlider(juce::Graphics & g, int x, int y, int width, int height, float sliderPos, const float rotaryStartAngle, const float rotaryEndAngle, juce::Slider&) override;
+   void drawRotarySlider(juce::Graphics & g, int x, int y, int width, int height, float sliderPos, const float rotaryStartAngle, 
+       const float rotaryEndAngle, juce::Slider&) override; // (x, y, width, height) are passing from the slider's resize() function. 
+                                                            //sliderPost is where the slider is from 0 to 1.
+                                                            // rotaryAngle is the angle in radiants from the center of the slider to the start position or to the end position
+
  //  void drawButtonBackground(juce::Graphics& g, juce::Button& button, const juce::Colour& backgroundColour,
  //      bool, bool isButtonDown) override;
     
