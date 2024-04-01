@@ -95,6 +95,8 @@ private:
     float filterFreqCutOff;
     bool filterState = false;
         
+    //CatmullRomInterpolator interpol;
+    LinearSmoothedValue<float> interpol;
     //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CircularAudioBufferAudioProcessor)
 };

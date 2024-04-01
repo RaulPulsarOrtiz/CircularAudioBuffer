@@ -111,6 +111,8 @@ void CircularAudioBufferAudioProcessor::prepareToPlay (double sampleRate, int sa
     reset(); //To avoid junk value from the previous time it was used
   //  filter.setType(dsp::StateVariableTPTFilterType::lowpass);
    // filter.setCutoffFrequency(500.f);
+
+    interpol.reset(sampleRate, 0.0005);
 }
 
 void CircularAudioBufferAudioProcessor::releaseResources()
@@ -215,8 +217,12 @@ void CircularAudioBufferAudioProcessor::fillDelayBuffer(int channel, const int b
 void CircularAudioBufferAudioProcessor::getFromDelayBuffer(AudioBuffer<float> buffer, int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
 {
     delayTime = *apvts.getRawParameterValue("DELAYTIME");
-    const int readPosition = static_cast<int>(delayBufferSize + writePos - (mSampleRate * delayTime / 1000)) % delayBufferSize;  //(mSampleRate * delayTime/1000) -> this is converting the seconds of delay (500ms) in samples. static_cast<int> is = than (int)(something) to be sure that everything that is there is going to be casted as an int
+    interpol.setTargetValue(delayTime);  //Smoothing parameter to avoid zero cross issues with SmoothingValue. -> Change this for cumtull ROM
+    delayTime = interpol.getNextValue();
+    DBG(delayTime);
 
+    const int readPosition = static_cast<int>(delayBufferSize + writePos - (mSampleRate * delayTime / 1000)) % delayBufferSize;  //(mSampleRate * delayTime/1000) -> this is converting the seconds of delay (500ms) in samples. static_cast<int> is = than (int)(something) to be sure that everything that is there is going to be casted as an int
+    
     if (delayBufferSize > bufferSize + readPosition) //To be sure that we are not coming back to much on the time that we reach the edge
     {
         buffer.addFrom(channel, 0, delayBufferData + readPosition, bufferSize);
@@ -253,7 +259,7 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     auto totalNumOutputChannels = getTotalNumOutputChannels();
  
     filterFreqCutOff = *apvts.getRawParameterValue("FILTERCUTOFF");
-
+  
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
     // guaranteed to be empty - they may contain garbage).
@@ -269,15 +275,17 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     for (int channel = 0; channel < totalNumInputChannels; ++channel) //Iterate for each channel of audio
     {
         auto* channelData = buffer.getWritePointer(channel);                   //	Returns a writeable pointer to one of the buffer's channels.
-        auto* delayChannelData = delayBuffer.getWritePointer(channel);
+        auto* delayChannelData = delayBuffer.getWritePointer(channel);         //	Returns a writeable pointer to one of the delay buffer's channels.      
 
         const float* bufferData = buffer.getReadPointer(channel);
         const float* delayBufferData = delayBuffer.getReadPointer(channel);
         float* ouputDryBuffer = buffer.getWritePointer(channel);
 
-        fillDelayBuffer(channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
-        getFromDelayBuffer(buffer, channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
+        fillDelayBuffer(channel, bufferSize, delayBufferSize, bufferData, delayChannelData);
+        getFromDelayBuffer(buffer, channel, bufferSize, delayBufferSize, bufferData, delayChannelData);
+        // interpol.process(1.0, delayBufferData, delayBufferData, 2.0);
         feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer, delayGain);
+        
     }
 
     filter.setCutoffFrequency(filterFreqCutOff);
@@ -299,8 +307,8 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
 
 
 
-    writePos += bufferSize;  //To itinerate one position each time that the content has been copied
-    writePos %= delayBufferSize; //This ensure that writePos is going to be between 0 and bufferSize
+      writePos += bufferSize;  //To itinerate one position each time that the content has been copied
+      writePos %= delayBufferSize; //This ensure that writePos is going to be between 0 and bufferSize
 
     //DBG("bufferDelaySize: " << delayBufferSize);
     //DBG("bufferSize: " << bufferSize);
@@ -318,7 +326,7 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
 AudioProcessorValueTreeState::ParameterLayout CircularAudioBufferAudioProcessor::createParameters()
 {
     std::vector<std::unique_ptr<RangedAudioParameter>> params;
-
+    
     params.push_back(std::make_unique<AudioParameterFloat>("DELAYTIME", "DelayTime", 0.f, 1000.f, 0.f));
     params.push_back(std::make_unique<AudioParameterFloat>("DELAYFEEDBACK", "DelayFeedback", 0.f, 1.1f, 0.5f));
     params.push_back(std::make_unique<AudioParameterChoice>("FILTERTYPEMENU", "FilterTypeMenu", juce::StringArray{ "Lowpass", "HighPass" }, 0));

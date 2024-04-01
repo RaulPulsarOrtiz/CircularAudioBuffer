@@ -14,6 +14,22 @@
 //==============================================================================
 /**
 */
+class OtherLookAndFeel : public juce::LookAndFeel_V4
+{
+public:
+    OtherLookAndFeel()
+    {
+        setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colours::azure);
+        setColour(juce::Slider::rotarySliderFillColourId, juce::Colours::goldenrod);
+        setColour(juce::Slider::thumbColourId, juce::Colours::transparentBlack); //Paint all the sliders globally
+       // setColour(juce::Slider::trackColourId, juce::Colours::cornflowerblue);
+    }
+ //  void drawRotarySlider(juce::Graphics & g, int x, int y, int width, int height, float sliderPos, const float rotaryStartAngle, const float rotaryEndAngle, juce::Slider&) override;
+ //  void drawButtonBackground(juce::Graphics& g, juce::Button& button, const juce::Colour& backgroundColour,
+ //      bool, bool isButtonDown) override;
+    
+};
+
 class CircularAudioBufferAudioProcessorEditor : public juce::AudioProcessorEditor,
                                                 public Slider::Listener,
                                                 public ComboBox::Listener,
@@ -36,6 +52,7 @@ private:
     // This reference is provided as a quick way for your editor to
     // access the processor object that created it.
     CircularAudioBufferAudioProcessor& audioProcessor;
+    OtherLookAndFeel otherLookAndFeel;
     Slider sldrDelayTime, sldrDelayGain, sldrFreqCutoff;
     Label delayTimeLabel, delayGainLabel, freqCutoffLabel;
     ComboBox filterTypeMenu;
