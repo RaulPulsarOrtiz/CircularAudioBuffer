@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 
 //==============================================================================
-CircularAudioBufferAudioProcessor::CircularAudioBufferAudioProcessor()
+CircularAudioBufferAudioProcessor::CircularAudioBufferAudioProcessor() 
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
@@ -95,11 +95,11 @@ void CircularAudioBufferAudioProcessor::prepareToPlay (double sampleRate, int sa
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
-
-    auto delayBufferSize = 1.1 * sampleRate; // To give a bit of extra room. That's how Audio Programmer does it.
-    mSampleRate = sampleRate;
+    sampleRate = getSampleRate();
+    auto delayBufferSize = 1.1 * getSampleRate(); // To give a bit of extra room. That's how Audio Programmer does it.
+   // mSampleRate = sampleRate;
     delayBuffer.setSize(getTotalNumInputChannels(), (int)delayBufferSize); //To cast buffer size that are double with the type of argument in the definition of the function
-
+    
 
     dsp::ProcessSpec spec; //DSP algorithm needs this info to work
     spec.sampleRate = sampleRate;
@@ -112,7 +112,17 @@ void CircularAudioBufferAudioProcessor::prepareToPlay (double sampleRate, int sa
   //  filter.setType(dsp::StateVariableTPTFilterType::lowpass);
    // filter.setCutoffFrequency(500.f);
        
-    interpol.reset(sampleRate, 0.0005);
+    interpol.reset(sampleRate, 0.00005); //0.00005
+   
+    auto cutoffFreq = 20.f;
+    auto resonance = 0.4f;
+    auto coefficientsFilter = juce::dsp::IIR::Coefficients<double>::makeLowPass(sampleRate, cutoffFreq, resonance);
+    interpolFilter.coefficients = coefficientsFilter;
+    interpolFilter.prepare(spec);
+
+   // auto coefficientsEnd = juce::dsp::IIR::Coefficients<double>::makeLowPass(sampleRate, 10000, 0.001);
+   // endFilter.coefficients = coefficientsEnd;
+   // endFilter.prepare(spec);
 }
 
 void CircularAudioBufferAudioProcessor::releaseResources()
@@ -147,11 +157,6 @@ bool CircularAudioBufferAudioProcessor::isBusesLayoutSupported (const BusesLayou
 }
 #endif
 
-/**
-* Set the type of filter choosen on the ComboBox "filterTypeMenu"
-* @param The type of filter is set as an index of the "filterTypeMenu" in the Editor
-* After choosing between LPF, BPF and HPF, the FILTERCUTOFF is set to be 20000 Hz, 1500 Hz or 500 Hz respectively
-*/
 void CircularAudioBufferAudioProcessor::setFilterType(int newfilterType) 
 {
     filterType = newfilterType;
@@ -175,26 +180,47 @@ void CircularAudioBufferAudioProcessor::setFilterType(int newfilterType)
     }
 }
 
-
-/**Resets filter configuration*/
 void CircularAudioBufferAudioProcessor::reset()
 {
     filter.reset();
+    interpolFilter.reset();
+    //endFilter.reset();
 }
 
-/** This function copies the normal buffer (given by JUCE????) into the circular Delay Bufer.
-* Firstly it checks if the main buffer copies to delay buffer without needing to wrap. "if (delayBufferSize > bufferSize + writePos)"
-* If yes.
-* It copies main buffer contents to delay buffer.
-* If not
-* Determine how much space is left at the end of the delay buffer "auto numSamplesToEnd = delayBufferSize - writePos;"
-*   Copy that amount of contents to the end...
-*   Calculate how much content is remaining to copy from the normal buffer " auto numSampleAtStart = bufferSize - numSamplesToEnd;"
-*   Copy remaining amount to beginning of delay buffer
-*/
+void CircularAudioBufferAudioProcessor::setSyncTime
+(int newSyncTimeIndex)
+{
+    auto* delayTimeParameter = getValueTreeState().getParameter("DELAYTIME");
+    typeOfSyncTime = newSyncTimeIndex;
+
+    if (typeOfSyncTime == 0) {
+       // delayTime = delayTime; //What happens if I change to sync and to manual again?
+       // getValueTreeState().getParameter("DELAYTIME")->setValueNotifyingHost(delayTime); //MMM siempre va a tener el anterior valor
+       // DBG("delay Times is being : " << delayTime);
+    }
+    else if (typeOfSyncTime == 1) {
+        float normalisedValue = delayTimeParameter->convertTo0to1(halfBar);  // Normalización de halfBar
+        getValueTreeState().getParameter("DELAYTIME")->setValueNotifyingHost(normalisedValue);
+    }
+    else if (typeOfSyncTime == 2) {
+        float normalisedValue = delayTimeParameter->convertTo0to1(quarterBar); // Normalización de quarterBar
+        getValueTreeState().getParameter("DELAYTIME")->setValueNotifyingHost(normalisedValue);
+     }
+    else if (typeOfSyncTime == 3) {
+       float normalisedValue = delayTimeParameter->convertTo0to1(thirdBar); // Normalización de thirdBar
+       getValueTreeState().getParameter("DELAYTIME")->setValueNotifyingHost(normalisedValue);  //With 120bpm this is more than 1000 ms (1500)
+    }
+    else if (typeOfSyncTime == 4) {
+        float normalisedValue = delayTimeParameter->convertTo0to1(threeQuarterBar); // Normalización de threeQuarterBar
+        getValueTreeState().getParameter("DELAYTIME")->setValueNotifyingHost(normalisedValue);
+    }
+    //DBG("Menu typo is: " << typeOfSyncTime);
+    //DBG("delayTime is: " << delayTime);
+}
+
 void CircularAudioBufferAudioProcessor::fillDelayBuffer(int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
 {
-    const float gain = 0.7f;
+    const float gain = 1.f;
    
     //Check to see if main buffer copies to delay buffer without needing to wrap
         //if yes
@@ -217,45 +243,186 @@ void CircularAudioBufferAudioProcessor::fillDelayBuffer(int channel, const int b
         auto numSampleAtStart = bufferSize - numSamplesToEnd;
         //Copy remaining amount to beginning of delay buffer
         delayBuffer.copyFromWithRamp(channel, 0, bufferData, numSampleAtStart, gain, gain);
-
     }
 }
 
-/** Content in circular Delay Buffer is copied again into normal Buffer with a delay applied
-*
-* 
-* "mSampleRate * delayTime/1000" -> this is converting the seconds of delay (500ms) in samples. static_cast<int> is = than (int)(something) to be sure that everything that is there is going to be casted as an int
-* To be sure that we are not coming back to much on the time that we reach the edge "if (delayBufferSize > bufferSize + readPosition)"
-*/
 void CircularAudioBufferAudioProcessor::getFromDelayBuffer(AudioBuffer<float> buffer, int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
 {
-    //int barDuration = (4.0 / (hostInfo.bpm / 60.0)); //beat Signature 4/4
+     float newDelayTime = 0.f;
+     newDelayTime = *apvts.getRawParameterValue("DELAYTIME");
 
-    delayTime = *apvts.getRawParameterValue("DELAYTIME");
-    interpol.setTargetValue(delayTime);  //Smoothing parameter to avoid zero cross issues with SmoothingValue. -> Change this for cumtull ROM
-    delayTime = interpol.getNextValue();
-;
+     // Umbral para el cambio significativo de delayTime
+    const float threshold = 0.1f;
 
-    // for (int sample = 0; sample < delayBuffer.getNumSamples(); ++sample)
-    // {
-    const int readPosition = (delayBufferSize + writePos - (mSampleRate * delayTime / 1000)) % delayBufferSize;  //(mSampleRate * delayTime/1000) -> this is converting the seconds of delay (500ms) in samples. static_cast<int> is = than (int)(something) to be sure that everything that is there is going to be casted as an int
-
-    if (delayBufferSize > bufferSize + readPosition) //To be sure that we are not coming back to much on the time that we reach the edge
+    // Verificar si hay un cambio grande en el delayTime y activar el crossfade
+    if (std::abs(newDelayTime - delayTime) > threshold)
     {
-        buffer.addFrom(channel, 0, delayBufferData + readPosition, bufferSize);
+  
+        crossfadeInProgress = true;  // Activar el crossfade
+        crossfadeFactor = 0.0f;      // Reiniciar el factor de crossfade
+    }
+
+    // Suavizar la transición del tiempo de delay
+    interpol.setTargetValue(newDelayTime);
+    delayTime = interpol.getNextValue();
+    int filteredDelayTime = interpolFilter.processSample(delayTime);
+    // Calcular newReadPosition basado en delayTime
+    const int newReadPosition = static_cast<int>(delayBufferSize + writePos - (sampleRate * filteredDelayTime / 1000)) % delayBufferSize;
+
+    if (!crossfadeInProgress)
+    {
+        oldReadPosition = newReadPosition; // Actualizar la posición si no hay crossfade
+    }
+
+    if (crossfadeInProgress)
+    {
+        crossfadeFactor += crossfadeStep;
+        // Agregar desde la posición de lectura anterior con una rampa decreciente
+        if (delayBufferSize > bufferSize + oldReadPosition)
+        {
+            buffer.addFromWithRamp(channel, 0, delayBufferData + oldReadPosition, bufferSize, 1.0f - crossfadeFactor, 1.0f - crossfadeFactor);
+        }
+        else
+        {
+            const int bufferRemaining = delayBufferSize - oldReadPosition;
+            buffer.addFromWithRamp(channel, 0, delayBufferData + oldReadPosition, bufferRemaining, 1.0f - crossfadeFactor, 1.0f - crossfadeFactor);
+            buffer.addFromWithRamp(channel, bufferRemaining, delayBufferData, bufferSize - bufferRemaining, 1.0f - crossfadeFactor, 1.0f - crossfadeFactor);
+        }
+
+        // Agregar desde la nueva posición de lectura con una rampa creciente
+        if (delayBufferSize > bufferSize + newReadPosition)
+        {
+            buffer.addFromWithRamp(channel, 0, delayBufferData + newReadPosition, bufferSize, crossfadeFactor, crossfadeFactor);
+        }
+        else
+        {
+            const int bufferRemaining = delayBufferSize - newReadPosition;
+            buffer.addFromWithRamp(channel, 0, delayBufferData + newReadPosition, bufferRemaining, crossfadeFactor, crossfadeFactor);
+            buffer.addFromWithRamp(channel, bufferRemaining, delayBufferData, bufferSize - bufferRemaining, crossfadeFactor, crossfadeFactor);
+        }
+
+        DBG("Crossfade in Progress, Factor: " << crossfadeFactor);
+
+        // Finalizar el crossfade cuando el factor alcance 1.0
+        if (crossfadeFactor >= 1.0f)
+        {
+            crossfadeFactor = 1.0f;
+            crossfadeInProgress = false;
+            oldReadPosition = newReadPosition;  // Actualizar a la nueva posición
+            DBG("Crossfade completed. Old Read Position: " << oldReadPosition);
+        }
     }
     else
     {
-        const int bufferRemaining = delayBufferSize - readPosition;
-        buffer.addFrom(channel, 0, delayBufferData + readPosition, bufferRemaining);
-        buffer.addFrom(channel, bufferRemaining, delayBufferData, bufferSize - bufferRemaining);
-    }
-    //   }
-}
+        // Si no hay crossfade en progreso, usar la nueva posición de lectura directamente
+        oldReadPosition = newReadPosition;
 
-/** This function is taking the ouput of the main buffer and copy it to the delayBuffer 
-    To be sure that we are not coming back to much on the time that we reach the edge "if (delayBufferSize > bufferSize + writePos)"
-*/
+        if (delayBufferSize > bufferSize + newReadPosition)
+        {
+            buffer.addFrom(channel, 0, delayBufferData + newReadPosition, bufferSize);
+        }
+        else
+        {
+            const int bufferRemaining = delayBufferSize - newReadPosition;
+            buffer.addFrom(channel, 0, delayBufferData + newReadPosition, bufferRemaining);
+            buffer.addFrom(channel, bufferRemaining, delayBufferData, bufferSize - bufferRemaining);
+        }
+    }
+}
+//void CircularAudioBufferAudioProcessor::getFromDelayBuffer(juce::AudioBuffer<float> buffer, int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
+//{
+//    float newDelayTime = *apvts.getRawParameterValue("DELAYTIME");
+//
+//    // Umbral para el cambio significativo de delayTime
+//    const float threshold = 0.1f;
+//
+//    // Verificar si hay un cambio grande en el delayTime y activar el crossfade
+//    if (std::abs(newDelayTime - delayTime) > threshold)
+//    {
+//        crossfadeInProgress = true;
+//        crossfadeFactor = 0.0f;
+//    }
+//
+//    for (int sample = 0; sample < bufferSize; ++sample)
+//    {
+//        // Calcular delayTime suavizado por muestra
+//        interpol.setTargetValue(newDelayTime);  // Suavizado usando interpol
+//        delayTime = interpol.getNextValue();
+//
+//        // Calcular la posición de lectura en el delay buffer
+//        int newReadPosition = static_cast<int>(delayBufferSize + writePos - (getSampleRate() * delayTime / 1000)) % delayBufferSize;
+//
+//        if (!crossfadeInProgress)
+//        {
+//            oldReadPosition = newReadPosition; // Actualizar la posición si no hay crossfade
+//        }
+//        DBG("newDelayTime is: " << newDelayTime << "delayTime is: " << delayTime);
+//        //if (sample >= 0 && sample < bufferSize)
+//        //{
+//            // Asegurarse de que numSamples no exceda los límites del buffer
+//           // int numSamples = 1; // En este caso, procesamos muestra por muestra
+//           // int remainingSamples = bufferSize - sample;
+//           // numSamples = juce::jmin(numSamples, remainingSamples); // Ajustar numSamples si es necesario
+//
+//          //  if (sample + numSamples <= bufferSize)
+//          //  {
+//
+//                // Realizar el crossfade si está activado
+//                if (crossfadeInProgress)
+//                {
+//                    crossfadeFactor += crossfadeStep;
+//
+//                    // Leer desde la posición anterior con un factor de crossfade decreciente
+//                    if (delayBufferSize > oldReadPosition + 1)
+//                    {
+//                        buffer.addFromWithRamp(channel, sample, delayBufferData + oldReadPosition, 1, 1.0f - crossfadeFactor, 1.0f - crossfadeFactor);
+//                    }
+//                    else
+//                    {
+//                        const int bufferRemaining = delayBufferSize - oldReadPosition;
+//                        buffer.addFromWithRamp(channel, sample, delayBufferData + oldReadPosition, bufferRemaining, 1.0f - crossfadeFactor, 1.0f - crossfadeFactor);
+//                        buffer.addFromWithRamp(channel, sample + bufferRemaining, delayBufferData, 1 - bufferRemaining, 1.0f - crossfadeFactor, 1.0f - crossfadeFactor);
+//                    }
+//
+//                    // Leer desde la nueva posición con un factor creciente
+//                    if (delayBufferSize > newReadPosition + 1)
+//                    {
+//                        buffer.addFromWithRamp(channel, sample, delayBufferData + newReadPosition, 1, crossfadeFactor, crossfadeFactor);
+//                    }
+//                    else
+//                    {
+//                        const int bufferRemaining = delayBufferSize - newReadPosition;
+//                        buffer.addFromWithRamp(channel, sample, delayBufferData + newReadPosition, bufferRemaining, crossfadeFactor, crossfadeFactor);
+//                        buffer.addFromWithRamp(channel, sample + bufferRemaining, delayBufferData, 1 - bufferRemaining, crossfadeFactor, crossfadeFactor);
+//                    }
+//                    DBG("oldReadPos: " << oldReadPosition << "newReadPosition: " << newReadPosition);
+//                    // Finalizar el crossfade cuando el factor alcance 1.0
+//                    if (crossfadeFactor >= 1.0f)
+//                    {
+//                        crossfadeInProgress = false;
+//                        oldReadPosition = newReadPosition;
+//                    }
+//                }
+//                else
+//                {
+//                    // Si no hay crossfade, leer desde la nueva posición directamente
+//                    if (delayBufferSize > newReadPosition + 1)
+//                    {
+//                        buffer.addFrom(channel, sample, delayBufferData + newReadPosition, 1);
+//                    }
+//                    else
+//                    {
+//                        const int bufferRemaining = delayBufferSize - newReadPosition;
+//                        buffer.addFrom(channel, sample, delayBufferData + newReadPosition, bufferRemaining); // Leer las muestras restantes
+//                        buffer.addFrom(channel, sample + bufferRemaining, delayBufferData, 1 - bufferRemaining); // Leer desde el principio del delayBuffer si es necesario
+//                    }
+//                }
+//            }
+//        }
+//   // }
+
+
+
 void CircularAudioBufferAudioProcessor::feedbackDelay(int channel, const int bufferSize, const int delayBufferSize, float* ouputDryBuffer, float delayGain) //We are taking the ouput of the main buffer and copy it to the delayBuffer
 {
     delayGain = *apvts.getRawParameterValue("DELAYFEEDBACK");
@@ -272,6 +439,7 @@ void CircularAudioBufferAudioProcessor::feedbackDelay(int channel, const int buf
     }
 }
 
+
 void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::MidiBuffer& midiMessages)
 {
     juce::ScopedNoDenormals noDenormals;
@@ -280,14 +448,37 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
  
     filterFreqCutOff = *apvts.getRawParameterValue("FILTERCUTOFF");
    
+    /** @param barDuration is the duration of a bar. First in seconds and after is updated to miliseconds */
     audioPlayHead = this->getPlayHead();
     if (audioPlayHead != nullptr)
     {
-        // audioPlayHead->getCurrentPosition(hostInfo);
-        barDuration = 240 / hostInfo.bpm;  //  (4.0 / (hostInfo.bpm / 60.0)); //beat Signature 4/4
+        audioPlayHead->getCurrentPosition(hostInfo);
+
+        barDuration = 4 * (60 / hostInfo.bpm) * 1000;  //  (4.0 / (hostInfo.bpm * 60.0)); //beat Signature 4/4 //now miliseconds
+
+        halfBar = barDuration * 0.5;
+        quarterBar = barDuration * 0.25;
+        thirdBar = barDuration * 0.33;
+        threeQuarterBar = barDuration * 0.75;
     }
-  
-    // DBG("BPM: " >> hostInfo.bpm >> "barDuration: " >> barDuration);
+
+    
+
+    // Verificar si el playHead está disponible
+ //   if (auto* playHead = getPlayHead())
+ //   {
+ //       // Obtener la información de la posición actual
+ //       if (playHead->getCurrentPosition(hostInfo))
+ //       {
+ //           // Extraer el BPM (tempo) del host
+ //           double bpm = hostInfo.bpm;
+ // 
+ //           // Imprimir o usar el valor del BPM
+ //           DBG("El tempo actual es: " << bpm << " BPM");
+ //        }
+ //   }
+
+   // 
    // 
     // In case we have more outputs than inputs, this code clears any output
     // channels that didn't contain input data, (because these aren't
@@ -303,20 +494,23 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
 
     for (int channel = 0; channel < totalNumInputChannels; ++channel) //Iterate for each channel of audio
     {
-        auto* channelData = buffer.getWritePointer(channel);                   //	Returns a writeable pointer to one of the buffer's channels.
+    //    auto* channelData = buffer.getWritePointer(channel);                   //	Returns a writeable pointer to one of the buffer's channels.
         auto* delayChannelData = delayBuffer.getWritePointer(channel);         //	Returns a writeable pointer to one of the delay buffer's channels.      
 
         const float* bufferData = buffer.getReadPointer(channel);
         const float* delayBufferData = delayBuffer.getReadPointer(channel);
         float* ouputDryBuffer = buffer.getWritePointer(channel);
 
+
         fillDelayBuffer(channel, bufferSize, delayBufferSize, bufferData, delayChannelData);
-        getFromDelayBuffer(buffer, channel, bufferSize, delayBufferSize, bufferData, delayChannelData);
-        // interpol.process(1.0, delayBufferData, delayBufferData, 2.0);
-        feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer, delayGain);
-        
+        getFromDelayBuffer(buffer, channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
+        feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer, delayGain); 
+ 
     }
-    
+    //juce::dsp::AudioBlock<float> audioBlockEnd(delayBuffer); //already do both channels for the dsp process
+    //juce::dsp::ProcessContextReplacing<float> contextEnd(audioBlockEnd);
+    //endFilter.process(contextEnd);
+
     filter.setCutoffFrequency(filterFreqCutOff);
     filterState = *apvts.getRawParameterValue("FILTERONOFF");
 
@@ -334,22 +528,14 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     }
     //Get channelData again or buffer and multiply for something less than 1 to avoid that rise and colapse of the L & R channels?
 
-
-
       writePos += bufferSize;  //To itinerate one position each time that the content has been copied
       writePos %= delayBufferSize; //This ensure that writePos is going to be between 0 and bufferSize
 
     //DBG("bufferDelaySize: " << delayBufferSize);
     //DBG("bufferSize: " << bufferSize);
-    //DBG("writePos: " << writePos);
-    
- 
+   // DBG("writePos: " << writePos);
 }
 
-
-/** Creates a list of parameters thar are linked with the sliders on a ValueTreeState
-* @return the list of parameters
-*/
 AudioProcessorValueTreeState::ParameterLayout CircularAudioBufferAudioProcessor::createParameters()
 {
     std::vector<std::unique_ptr<RangedAudioParameter>> params;
@@ -360,12 +546,11 @@ AudioProcessorValueTreeState::ParameterLayout CircularAudioBufferAudioProcessor:
     params.push_back(std::make_unique<AudioParameterBool>("FILTERONOFF", "filterOnOff", false)); 
     params.push_back(std::make_unique<AudioParameterFloat>("FILTERCUTOFF", "FilterCutoff", NormalisableRange<float>(500.0f, 20000.0f, 0.0f, 0.3f), 20000.0f)); // 0.3f controla la curva logarítmica. With the normalisable range the curve has much more detail on the low freq. Similar tu log curve
     //params.push_back(std::make_unique<AudioParameterFloat>("FILTERCUTOFF", "FilterCutoff", 500.f, 20000.f, 20000.f)); //Before
+    params.push_back(std::make_unique<AudioParameterChoice>("SYNCBpmMENU", "syncBpmMenu", juce::StringArray{ "Manual", "1/2", "1/4", "1/3", "3/4",  }, 0));
+    return { params.begin(), params.end() };                                                                
+}                                                                                                            
 
-    return { params.begin(), params.end() };
-}
-/** Method to get the parameters from the ValueTreeState
-* @return and object with of the ValueTreeState to access their parameters
-*/
+
 AudioProcessorValueTreeState& CircularAudioBufferAudioProcessor::getValueTreeState() { return apvts; }
 
 //==============================================================================

@@ -129,18 +129,16 @@ CircularAudioBufferAudioProcessorEditor::CircularAudioBufferAudioProcessorEditor
     setSize(1000, 300);
     
     sldrDelayTime.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
-   // sldrDelayTime.setRange(0.0, 1000.0, 1.0);
     sldrDelayTime.setTextValueSuffix("ms");
-    sldrDelayTime.addListener(this);
+    sldrDelayTime.setTextBoxStyle(Slider::TextBoxBelow, false, 70, 20);
     sldrDelayTime.setLookAndFeel(&otherLookAndFeel);
     addAndMakeVisible(sldrDelayTime);
  
     delayTimeAttachment = std::make_unique<AudioProcessorValueTreeState::SliderAttachment> (audioProcessor.apvts, "DELAYTIME", sldrDelayTime);
 
     sldrDelayGain.setSliderStyle(Slider::RotaryHorizontalVerticalDrag);
-   // sldrDelayGain.setRange(0.0, 1.1, 0.01);
+    sldrDelayGain.setTextBoxStyle(Slider::TextBoxBelow, false, 70, 20);
     sldrDelayGain.setLookAndFeel(&otherLookAndFeel);
-    sldrDelayGain.addListener(this);
     addAndMakeVisible(sldrDelayGain);
 
     delayFeedbackAttachment = std::make_unique<AudioProcessorValueTreeState::SliderAttachment>(audioProcessor.apvts, "DELAYFEEDBACK", sldrDelayGain);
@@ -152,19 +150,20 @@ CircularAudioBufferAudioProcessorEditor::CircularAudioBufferAudioProcessorEditor
 
     delayTimeLabel.setText("Delay Time", dontSendNotification);
     delayTimeLabel.attachToComponent(&sldrDelayTime, false);
-    delayTimeLabel.setJustificationType(Justification::centredBottom);
+    delayTimeLabel.setCentrePosition(297, 40);
+    delayTimeLabel.setJustificationType(Justification::topLeft);
     addAndMakeVisible(sldrDelayTime);
 
     delayGainLabel.setText("Feedback Gain", dontSendNotification);
-    delayGainLabel.setJustificationType(Justification::centredBottom);
     delayGainLabel.attachToComponent(&sldrDelayGain, false);
+    delayGainLabel.setJustificationType(Justification::topLeft);
+    delayGainLabel.setCentrePosition(626, 40);
     addAndMakeVisible(delayGainLabel);
 
     filterTypeMenu.addItem("Lowpass", 1);
     filterTypeMenu.addItem("Bandpass", 2);
     filterTypeMenu.addItem("HighPass", 3);
     filterTypeMenu.setText("Filter Type:", dontSendNotification);
-  //  filterTypeMenu.addListener(this);
     addAndMakeVisible(filterTypeMenu);
 
     filterTypeMenuAttachment = std::make_unique<AudioProcessorValueTreeState::ComboBoxAttachment>(audioProcessor.apvts, "FILTERTYPEMENU", filterTypeMenu);
@@ -175,6 +174,22 @@ CircularAudioBufferAudioProcessorEditor::CircularAudioBufferAudioProcessorEditor
         DBG("FilterEnum is: " << filterTypeEnum);
         audioProcessor.setFilterType(filterTypeEnum);
         // DBG("Nuevo índice seleccionado: " << audioProcessor.filterType);
+    };
+
+    syncBpmMenu.addItem("Manual", 1);
+    syncBpmMenu.addItem("1/2", 2);
+    syncBpmMenu.addItem("1/4", 3);
+    syncBpmMenu.addItem("1/3", 4);
+    syncBpmMenu.addItem("3/4", 5);
+    syncBpmMenu.setText("Sync Time", dontSendNotification);
+    addAndMakeVisible(syncBpmMenu);
+
+    syncBpmMenuAttachment = std::make_unique<AudioProcessorValueTreeState::ComboBoxAttachment>(audioProcessor.apvts, "SYNCBpmMENU", syncBpmMenu);
+
+    syncBpmMenu.onChange = [this]() {
+        syncTimeIndexMenu = syncBpmMenu.getSelectedItemIndex();
+        audioProcessor.setSyncTime(syncTimeIndexMenu);
+        //DBG("El Index Selecionado es: " << syncTimeIndexMenu);
     };
 
     filterOnOffButton.setToggleState(false, NotificationType::dontSendNotification);
@@ -191,7 +206,6 @@ CircularAudioBufferAudioProcessorEditor::CircularAudioBufferAudioProcessorEditor
     sldrFreqCutoff.setTextBoxStyle(Slider::TextEntryBoxPosition::TextBoxBelow, true, 55, 20);
     sldrFreqCutoff.setTextValueSuffix("Hz");
     sldrFreqCutoff.setLookAndFeel(&filterLookAndFeel);
-    sldrFreqCutoff.addListener(this);
     addAndMakeVisible(sldrFreqCutoff);
 
     filterCutoffAttachment = std::make_unique<AudioProcessorValueTreeState::SliderAttachment>(audioProcessor.apvts, "FILTERCUTOFF", sldrFreqCutoff);
@@ -218,21 +232,17 @@ void CircularAudioBufferAudioProcessorEditor::paint (juce::Graphics& g)
 
 }
 
-/** Set the bounds of the components in the GUI*/
 void CircularAudioBufferAudioProcessorEditor::resized()
 {
-    // This is generally where you'll want to lay out the positions of any
-    // subcomponents in your editor..
-  
     auto area = getBounds();
-    sldrDelayTime.setBounds(100, 50, 265, 200);
-    sldrDelayGain.setBounds(350, 50, 265, 200);
+    sldrDelayTime.setBounds(70, 50, 265, 200);
+    sldrDelayGain.setBounds(410, 50, 265, 200);
     filterOnOffButton.setBounds(700, 50, 50, 30);
     filterTypeMenu.setBounds(700, 90, 100, 30);
+    syncBpmMenu.setBounds(300, 50, 100, 20);
     sldrFreqCutoff.setBounds(800, 55, 90, 90);
 }
 
-/** Set the colour of the Feedback Slider Label. If the value of the slider is more than 1, the Label turns red to warn about the incresing feedback loop*/
 void CircularAudioBufferAudioProcessorEditor::updateSliderColour(float value)
 {
     auto desiredColour = (value > 1.0f) ? Colours::red : Colours::transparentWhite;
@@ -243,31 +253,6 @@ void CircularAudioBufferAudioProcessorEditor::updateSliderColour(float value)
             delayGainLabel.setColour(juce::Label::backgroundColourId, desiredColour);
         });
 }
-
-//Do I am using this for anything? I don't think so
-void CircularAudioBufferAudioProcessorEditor::sliderValueChanged(Slider* slider)
-{
-//    if (slider == &sldrDelayTime)
-//    {
-//  //      audioProcessor.setDelayTime(sldrDelayTime.getValue());
-//    }
-//
-      if (slider == &sldrDelayGain)
-    {
-          if (sldrDelayGain.getValue() >= 1.0)
-          {
-              sldrDelayGain.setColour(juce::Slider::thumbColourId, juce::Colours::red);
-          //    sldrDelayGain.setColour(juce::Slider::rotarySliderFillColourId, juce::Colours::red);
-          }
-          else
-          {
-              sldrDelayGain.setColour(juce::Slider::thumbColourId, juce::Colours::transparentBlack);
-            //  sldrDelayGain.setColour(juce::Slider::rotarySliderOutlineColourId, juce::Colours::azure);
-           //   sldrDelayGain.setColour(juce::Slider::rotarySliderFillColourId, juce::Colours::azure);
-          }
-    }
-}
-
 
 void CircularAudioBufferAudioProcessorEditor::buttonClicked(Button* button)
 {
