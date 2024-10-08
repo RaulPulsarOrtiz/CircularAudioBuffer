@@ -10,7 +10,7 @@
 #include "PluginEditor.h"
 
 //==============================================================================
-CircularAudioBufferAudioProcessor::CircularAudioBufferAudioProcessor()
+CircularAudioBufferAudioProcessor::CircularAudioBufferAudioProcessor() 
 #ifndef JucePlugin_PreferredChannelConfigurations
      : AudioProcessor (BusesProperties()
                      #if ! JucePlugin_IsMidiEffect
@@ -95,11 +95,10 @@ void CircularAudioBufferAudioProcessor::prepareToPlay (double sampleRate, int sa
 {
     // Use this method as the place to do any pre-playback
     // initialisation that you need..
+    sampleRate = getSampleRate();
 
-    auto delayBufferSize = 1.1 * sampleRate; // To give a bit of extra room. That's how Audio Programmer does it.
-    mSampleRate = sampleRate;
+    auto delayBufferSize = 1.1 * getSampleRate(); // To give a bit of extra room. That's how Audio Programmer does it.
     delayBuffer.setSize(getTotalNumInputChannels(), (int)delayBufferSize); //To cast buffer size that are double with the type of argument in the definition of the function
-
 
     dsp::ProcessSpec spec; //DSP algorithm needs this info to work
     spec.sampleRate = sampleRate;
@@ -109,10 +108,18 @@ void CircularAudioBufferAudioProcessor::prepareToPlay (double sampleRate, int sa
     filter.prepare(spec);
     filter.setResonance(1 / sqrt(2)); //????
     reset(); //To avoid junk value from the previous time it was used
-  //  filter.setType(dsp::StateVariableTPTFilterType::lowpass);
-   // filter.setCutoffFrequency(500.f);
+       
+    interpol.reset(sampleRate, 0.00005); //0.00005
+    
+    auto cutoffFreq = 20.f;
+    auto resonance = 0.4f;
+    auto coefficientsFilter = juce::dsp::IIR::Coefficients<double>::makeLowPass(sampleRate, cutoffFreq, resonance);
+    interpolFilter.coefficients = coefficientsFilter;
+    interpolFilter.prepare(spec);
 
-    interpol.reset(sampleRate, 0.0005);
+    auto coefficients = juce::dsp::IIR::Coefficients<float>::makeLowPass(getSampleRate(), 10000);
+    endFilter.state = *coefficients;
+    endFilter.prepare(spec);
 }
 
 void CircularAudioBufferAudioProcessor::releaseResources()
@@ -147,48 +154,67 @@ bool CircularAudioBufferAudioProcessor::isBusesLayoutSupported (const BusesLayou
 }
 #endif
 
-//void CircularAudioBufferAudioProcessor::setDelayTime(int newDelayTime)
-//{
-//    delayTime = newDelayTime;
-//    DBG("DelayTime is: " << newDelayTime);
-//}
-
-//void CircularAudioBufferAudioProcessor::setDelayGain(float newdelayGain)
-//{
-//    delayGain = newdelayGain;
-//}
-
-void CircularAudioBufferAudioProcessor::setFilterType(FilterType newFiltertype)
+void CircularAudioBufferAudioProcessor::setFilterType(int newfilterType) 
 {
-    filterType = newFiltertype;
-
-    if (filterType == FilterType::LowPass)
+    filterType = newfilterType;
+  
+    if (filterType == 1) // FilterType::LowPass)
     {
         filter.setType(dsp::StateVariableTPTFilterType::lowpass);
+        getValueTreeState().getParameterAsValue("FILTERCUTOFF") = 20000.0f; // Cambia el valor del parámetro 'filterCutoff' a 500
+        DBG("Filter is set to: " << filterType);
     }
-    else if (filterType == FilterType::BandPass)
+    else if (filterType == 2) //FilterType::BandPass)
     {
         filter.setType(dsp::StateVariableTPTFilterType::bandpass);
+        getValueTreeState().getParameterAsValue("FILTERCUTOFF") = 2000.0f;
     }
-    else if (filterType == FilterType::HighPass)
+    else if (filterType == 3) ///FilterType::HighPass)
     {
          filter.setType(dsp::StateVariableTPTFilterType::highpass);
+         getValueTreeState().getParameterAsValue("FILTERCUTOFF") = 500.0f; // Cambia el valor del parámetro 'filterCutoff' a 500 //getParameterAsValue ->Returns a Value object that can be used to control a particular parameter.
+         DBG("Filter is set to: " << filterType);
     }
 }
-
-//void CircularAudioBufferAudioProcessor::setFreqCutoff(float newFreqCutoff)
-//{
-//    filterFreqCutOff = newFreqCutoff;
-//}
 
 void CircularAudioBufferAudioProcessor::reset()
 {
     filter.reset();
+    interpolFilter.reset();
+    endFilter.reset();
+}
+
+void CircularAudioBufferAudioProcessor::setSyncTime
+(int newSyncTimeIndex)
+{
+    auto* delayTimeParameter = getValueTreeState().getParameter("DELAYTIME");
+    typeOfSyncTime = newSyncTimeIndex;
+
+    if (typeOfSyncTime == 0) {
+       // delayTime = delayTime; //What happens if I change to sync and to manual again?
+    }
+    else if (typeOfSyncTime == 1) {
+        float normalisedValue = delayTimeParameter->convertTo0to1(halfBar);  // Normalización de halfBar
+        getValueTreeState().getParameter("DELAYTIME")->setValueNotifyingHost(normalisedValue);
+    }
+    else if (typeOfSyncTime == 2) {
+        float normalisedValue = delayTimeParameter->convertTo0to1(quarterBar); // Normalización de quarterBar
+        getValueTreeState().getParameter("DELAYTIME")->setValueNotifyingHost(normalisedValue);
+     }
+    else if (typeOfSyncTime == 3) {
+       float normalisedValue = delayTimeParameter->convertTo0to1(thirdBar); // Normalización de thirdBar
+       getValueTreeState().getParameter("DELAYTIME")->setValueNotifyingHost(normalisedValue);  //With 120bpm this is more than 1000 ms (1500)
+    }
+    else if (typeOfSyncTime == 4) {
+        float normalisedValue = delayTimeParameter->convertTo0to1(threeQuarterBar); // Normalización de threeQuarterBar
+        getValueTreeState().getParameter("DELAYTIME")->setValueNotifyingHost(normalisedValue);
+    }
 }
 
 void CircularAudioBufferAudioProcessor::fillDelayBuffer(int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
 {
-    const float gain = 0.7f;
+    const float gain = 1.f;
+   
     //Check to see if main buffer copies to delay buffer without needing to wrap
         //if yes
         //copy main buffer contents to delay buffer
@@ -210,35 +236,93 @@ void CircularAudioBufferAudioProcessor::fillDelayBuffer(int channel, const int b
         auto numSampleAtStart = bufferSize - numSamplesToEnd;
         //Copy remaining amount to beginning of delay buffer
         delayBuffer.copyFromWithRamp(channel, 0, bufferData, numSampleAtStart, gain, gain);
-
     }
 }
 
 void CircularAudioBufferAudioProcessor::getFromDelayBuffer(AudioBuffer<float> buffer, int channel, const int bufferSize, const int delayBufferSize, const float* bufferData, const float* delayBufferData)
 {
-    delayTime = *apvts.getRawParameterValue("DELAYTIME");
-    interpol.setTargetValue(delayTime);  //Smoothing parameter to avoid zero cross issues with SmoothingValue. -> Change this for cumtull ROM
-    delayTime = interpol.getNextValue();
-    DBG(delayTime);
+     float newDelayTime = 0.f;
+     newDelayTime = *apvts.getRawParameterValue("DELAYTIME");
 
-    const int readPosition = static_cast<int>(delayBufferSize + writePos - (mSampleRate * delayTime / 1000)) % delayBufferSize;  //(mSampleRate * delayTime/1000) -> this is converting the seconds of delay (500ms) in samples. static_cast<int> is = than (int)(something) to be sure that everything that is there is going to be casted as an int
-    
-    if (delayBufferSize > bufferSize + readPosition) //To be sure that we are not coming back to much on the time that we reach the edge
+    // Threshold enough for delayTime change
+    const float threshold = 0.1f;
+
+    // Check if there is a big change in delayTime and activate the crossfade
+    if (std::abs(newDelayTime - delayTime) > threshold)
     {
-        buffer.addFrom(channel, 0, delayBufferData + readPosition, bufferSize);
+        crossfadeInProgress = true;  // Activar el crossfade
+        crossfadeFactor = 0.0f;      // Reiniciar el factor de crossfade
+    }
+
+    // Smooth out the delayTime transition
+    interpol.setTargetValue(newDelayTime);
+    delayTime = interpol.getNextValue();
+    int filteredDelayTime = interpolFilter.processSample(delayTime);
+    // Calculate newReadPosition based on delayTime
+    const int newReadPosition = static_cast<int>(delayBufferSize + writePos - (sampleRate * filteredDelayTime / 1000)) % delayBufferSize;
+
+    if (!crossfadeInProgress)
+    {
+        oldReadPosition = newReadPosition; // Update position if there is no crossfade
+    }
+
+    if (crossfadeInProgress)
+    {
+        crossfadeFactor += crossfadeStep;
+        // Add from the previous reading position with a decreasing ramp
+        if (delayBufferSize > bufferSize + oldReadPosition)
+        {
+            buffer.addFromWithRamp(channel, 0, delayBufferData + oldReadPosition, bufferSize, 1.0f - crossfadeFactor, 1.0f - crossfadeFactor);
+        }
+        else
+        {
+            const int bufferRemaining = delayBufferSize - oldReadPosition;
+            buffer.addFromWithRamp(channel, 0, delayBufferData + oldReadPosition, bufferRemaining, 1.0f - crossfadeFactor, 1.0f - crossfadeFactor);
+            buffer.addFromWithRamp(channel, bufferRemaining, delayBufferData, bufferSize - bufferRemaining, 1.0f - crossfadeFactor, 1.0f - crossfadeFactor);
+        }
+
+        // Add from new reading position with increasing ramp
+        if (delayBufferSize > bufferSize + newReadPosition)
+        {
+            buffer.addFromWithRamp(channel, 0, delayBufferData + newReadPosition, bufferSize, crossfadeFactor, crossfadeFactor);
+        }
+        else
+        {
+            const int bufferRemaining = delayBufferSize - newReadPosition;
+            buffer.addFromWithRamp(channel, 0, delayBufferData + newReadPosition, bufferRemaining, crossfadeFactor, crossfadeFactor);
+            buffer.addFromWithRamp(channel, bufferRemaining, delayBufferData, bufferSize - bufferRemaining, crossfadeFactor, crossfadeFactor);
+        }
+       
+        // End crossfade when factor reaches 1.0
+        if (crossfadeFactor >= 1.0f)
+        {
+            crossfadeFactor = 1.0f;
+            crossfadeInProgress = false;
+            oldReadPosition = newReadPosition;  // Update to new position
+            DBG("Crossfade completed. Old Read Position: " << oldReadPosition);
+        }
     }
     else
     {
-        const int bufferRemaining = delayBufferSize - readPosition;
-        buffer.addFrom(channel, 0, delayBufferData + readPosition, bufferRemaining);
-        buffer.addFrom(channel, bufferRemaining, delayBufferData, bufferSize - bufferRemaining);
+        // If no crossfade is in progress, use the new read position directly
+        oldReadPosition = newReadPosition;
+
+        if (delayBufferSize > bufferSize + newReadPosition)
+        {
+            buffer.addFrom(channel, 0, delayBufferData + newReadPosition, bufferSize);
+        }
+        else
+        {
+            const int bufferRemaining = delayBufferSize - newReadPosition;
+            buffer.addFrom(channel, 0, delayBufferData + newReadPosition, bufferRemaining);
+            buffer.addFrom(channel, bufferRemaining, delayBufferData, bufferSize - bufferRemaining);
+        }
     }
 }
 
 void CircularAudioBufferAudioProcessor::feedbackDelay(int channel, const int bufferSize, const int delayBufferSize, float* ouputDryBuffer, float delayGain) //We are taking the ouput of the main buffer and copy it to the delayBuffer
 {
     delayGain = *apvts.getRawParameterValue("DELAYFEEDBACK");
-
     if (delayBufferSize > bufferSize + writePos) //To be sure that we are not coming back to much on the time that we reach the edge
     {
         delayBuffer.addFrom(channel, writePos, ouputDryBuffer, bufferSize, delayGain);
@@ -259,22 +343,30 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     auto totalNumOutputChannels = getTotalNumOutputChannels();
  
     filterFreqCutOff = *apvts.getRawParameterValue("FILTERCUTOFF");
-  
-    // In case we have more outputs than inputs, this code clears any output
-    // channels that didn't contain input data, (because these aren't
-    // guaranteed to be empty - they may contain garbage).
-    // This is here to avoid people getting screaming feedback
-    // when they first compile a plugin, but obviously you don't need to keep
-    // this code if your algorithm always overwrites all the output channels.
+   
+    /** @param barDuration is the duration of a bar. First in seconds and after is updated to miliseconds */
+    audioPlayHead = this->getPlayHead();
+    if (audioPlayHead != nullptr)
+    {
+        audioPlayHead->getCurrentPosition(hostInfo);
+
+        barDuration = 4 * (60 / hostInfo.bpm) * 1000;  //  (4.0 / (hostInfo.bpm * 60.0)); //beat Signature 4/4 //now miliseconds
+
+        halfBar = barDuration * 0.5;
+        quarterBar = barDuration * 0.25;
+        thirdBar = barDuration * 0.33;
+        threeQuarterBar = barDuration * 0.75;
+    }
+
     for (auto i = totalNumInputChannels; i < totalNumOutputChannels; ++i)
         buffer.clear (i, 0, buffer.getNumSamples());
 
     auto bufferSize = buffer.getNumSamples();
     auto delayBufferSize = delayBuffer.getNumSamples();
-
+   
     for (int channel = 0; channel < totalNumInputChannels; ++channel) //Iterate for each channel of audio
     {
-        auto* channelData = buffer.getWritePointer(channel);                   //	Returns a writeable pointer to one of the buffer's channels.
+    //    auto* channelData = buffer.getWritePointer(channel);                   //	Returns a writeable pointer to one of the buffer's channels.
         auto* delayChannelData = delayBuffer.getWritePointer(channel);         //	Returns a writeable pointer to one of the delay buffer's channels.      
 
         const float* bufferData = buffer.getReadPointer(channel);
@@ -282,11 +374,14 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
         float* ouputDryBuffer = buffer.getWritePointer(channel);
 
         fillDelayBuffer(channel, bufferSize, delayBufferSize, bufferData, delayChannelData);
-        getFromDelayBuffer(buffer, channel, bufferSize, delayBufferSize, bufferData, delayChannelData);
-        // interpol.process(1.0, delayBufferData, delayBufferData, 2.0);
-        feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer, delayGain);
-        
+        getFromDelayBuffer(buffer, channel, bufferSize, delayBufferSize, bufferData, delayBufferData);
+        feedbackDelay(channel, bufferSize, delayBufferSize, ouputDryBuffer, delayGain); 
+
     }
+
+    auto audioBlockEnd = juce::dsp::AudioBlock<float>(delayBuffer); //already do both channels for the dsp process
+    auto contextEnd = juce::dsp::ProcessContextReplacing<float>(audioBlockEnd);
+    endFilter.process(contextEnd);
 
     filter.setCutoffFrequency(filterFreqCutOff);
     filterState = *apvts.getRawParameterValue("FILTERONOFF");
@@ -305,23 +400,9 @@ void CircularAudioBufferAudioProcessor::processBlock (juce::AudioBuffer<float>& 
     }
     //Get channelData again or buffer and multiply for something less than 1 to avoid that rise and colapse of the L & R channels?
 
-
-
       writePos += bufferSize;  //To itinerate one position each time that the content has been copied
       writePos %= delayBufferSize; //This ensure that writePos is going to be between 0 and bufferSize
-
-    //DBG("bufferDelaySize: " << delayBufferSize);
-    //DBG("bufferSize: " << bufferSize);
-    //DBG("writePos: " << writePos);
-    
- 
 }
-
-
-//void CircularAudioBufferAudioProcessor::filterIsOn(bool newFilterState)
-//{
-////    filterState = newFilterState;
-//}
 
 AudioProcessorValueTreeState::ParameterLayout CircularAudioBufferAudioProcessor::createParameters()
 {
@@ -329,12 +410,16 @@ AudioProcessorValueTreeState::ParameterLayout CircularAudioBufferAudioProcessor:
     
     params.push_back(std::make_unique<AudioParameterFloat>("DELAYTIME", "DelayTime", 0.f, 1000.f, 0.f));
     params.push_back(std::make_unique<AudioParameterFloat>("DELAYFEEDBACK", "DelayFeedback", 0.f, 1.1f, 0.5f));
-    params.push_back(std::make_unique<AudioParameterChoice>("FILTERTYPEMENU", "FilterTypeMenu", juce::StringArray{ "Lowpass", "HighPass" }, 0));
+    params.push_back(std::make_unique<AudioParameterChoice>("FILTERTYPEMENU", "FilterTypeMenu", juce::StringArray{ "Lowpass", "Bandpass", "HighPass" }, 0));
     params.push_back(std::make_unique<AudioParameterBool>("FILTERONOFF", "filterOnOff", false)); 
-    params.push_back(std::make_unique<AudioParameterFloat>("FILTERCUTOFF", "FilterCutoff", 500.f, 20000.f, 20000.f));
+    params.push_back(std::make_unique<AudioParameterFloat>("FILTERCUTOFF", "FilterCutoff", NormalisableRange<float>(500.0f, 20000.0f, 0.0f, 0.3f), 20000.0f)); // 0.3f controls the logarithmic curve. With the normalisable range the curve has much more detail on the low freq. Similar tu log curve
+    //params.push_back(std::make_unique<AudioParameterFloat>("FILTERCUTOFF", "FilterCutoff", 500.f, 20000.f, 20000.f)); //Before
+    params.push_back(std::make_unique<AudioParameterChoice>("SYNCBpmMENU", "syncBpmMenu", juce::StringArray{ "Manual", "1/2", "1/4", "1/3", "3/4",  }, 0));
+    return { params.begin(), params.end() };                                                                
+}                                                                                                            
 
-    return { params.begin(), params.end() };
-}
+
+AudioProcessorValueTreeState& CircularAudioBufferAudioProcessor::getValueTreeState() { return apvts; }
 
 //==============================================================================
 bool CircularAudioBufferAudioProcessor::hasEditor() const
